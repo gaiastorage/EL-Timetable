@@ -2,7 +2,6 @@ import os
 from datetime import datetime, date
 from flask import Flask, request, redirect, url_for, render_template_string, flash
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import extract
 
 # -------------------------
 # Flask setup
@@ -71,7 +70,6 @@ def render(page, **kwargs):
       <a href="{{ url_for('add_session') }}" class="btn btn-sm btn-outline-success">Add Session</a>
       <a href="{{ url_for('payments') }}" class="btn btn-sm btn-outline-dark">Payments</a>
       <a href="{{ url_for('teacher_totals') }}" class="btn btn-sm btn-outline-dark">Teacher Totals</a>
-      <a href="{{ url_for('weekly_timetable') }}" class="btn btn-sm btn-outline-dark">Weekly Grid</a>
       <a href="{{ url_for('logs') }}" class="btn btn-sm btn-outline-dark">Logs</a>
     </nav>
     <div class="container">
@@ -203,3 +201,6 @@ def add_session():
         teacher_id = int(request.form.get("teacher_id"))
         student_id = int(request.form.get("student_id"))
         subject_id = int(request.form.get("subject_id"))
+        session_date = parse_date(request.form.get("session_date"))
+        start_time = parse_time(request.form.get("start_time"))
+        end_time = parse_time(request
