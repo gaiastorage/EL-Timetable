@@ -203,24 +203,26 @@ def manage_teachers():
         return redirect(url_for("manage_teachers"))
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
     page = """
-    <h5>Teachers</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-auto"><input class="form-control" name="name" placeholder="New teacher name"></div>
-      <div class="col-auto"><button class="btn btn-primary">Add</button></div>
-    </form>
-    <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
-      <tbody>
-        {% for t in teachers %}
-          <tr>
-            <td>{{ t.name }}</td>
-            <td>
-              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_teacher', teacher_id=t.id) }}" onclick="return confirm('Delete teacher and their sessions?')">Delete</a>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+   <h5>Teachers</h5>
+<form method="post" class="row g-2 mb-3">
+  <div class="col-auto"><input class="form-control" name="name" placeholder="New teacher name"></div>
+  <div class="col-auto"><button class="btn btn-primary">Add</button></div>
+</form>
+<table class="table table-sm table-bordered">
+  <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+  <tbody>
+    {% for t in teachers %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td>
+          <a class="btn btn-sm btn-outline-danger"
+             href="{{ url_for('delete_teacher', teacher_id=t.id) }}"
+             onclick="return confirm('Delete teacher and their sessions?')">Delete</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
     """
     return render(page, teachers=teachers)
 
@@ -241,25 +243,27 @@ def manage_students():
     students = Student.query.order_by(Student.name.asc()).all()
     page = """
     <h5>Students</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
-      <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-    </form>
-    <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
-      <tbody>
-        {% for s in students %}
-          <tr>
-            <td>{{ s.name }}</td>
-            <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
-            <td>
-              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_student', student_id=s.id) }}" onclick="return confirm('Delete student and their sessions?')">Delete</a>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<form method="post" class="row g-2 mb-3">
+  <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
+  <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
+  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+</form>
+<table class="table table-sm table-bordered">
+  <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
+  <tbody>
+    {% for s in students %}
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
+        <td>
+          <a class="btn btn-sm btn-outline-danger"
+             href="{{ url_for('delete_student', student_id=s.id) }}"
+             onclick="return confirm('Delete student and their sessions?')">Delete</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
     """
     return render(page, students=students)
 
@@ -279,11 +283,25 @@ def manage_subjects():
     subjects = Subject.query.order_by(Subject.name.asc()).all()
     page = """
     <h5>Subjects</h5>
-    <form method="post" class="mb-3">
-      <input class="form-control mb-2" name="name" placeholder="Subject name">
-      <button class="btn btn-primary">Add</button>
-    </form>
-    <ul>{% for s in subjects %}<li>{{ s.name }}</li>{% endfor %}</ul>
+<form method="post" class="row g-2 mb-3">
+  <div class="col-md-6"><input class="form-control" name="name" placeholder="Subject name"></div>
+  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+</form>
+<table class="table table-sm table-bordered">
+  <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+  <tbody>
+    {% for sub in subjects %}
+      <tr>
+        <td>{{ sub.name }}</td>
+        <td>
+          <a class="btn btn-sm btn-outline-danger"
+             href="{{ url_for('delete_subject', subject_id=sub.id) }}"
+             onclick="return confirm('Delete subject and its sessions?')">Delete</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
     """
     return render(page, subjects=subjects)
 
