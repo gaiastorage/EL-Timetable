@@ -201,4 +201,5 @@ def add_session():
         teacher_id = int(request.form.get("teacher_id"))
         student_id = int(request.form.get("student_id"))
         subject_id = int(request.form.get("subject_id"))
-        session_date = parse_date(request
+        session_date = parse_date(request.form.get("session_date"))
+        start_time = parse
