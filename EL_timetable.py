@@ -203,4 +203,4 @@ def add_session():
         subject_id = int(request.form.get("subject_id"))
         session_date = parse_date(request.form.get("session_date"))
         start_time = parse_time(request.form.get("start_time"))
-        end_time = parse_time(request
+        end
