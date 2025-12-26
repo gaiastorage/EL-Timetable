@@ -131,40 +131,54 @@ def log_action(action, details=""):
 @app.route("/")
 def home():
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    return render("<h5>Welcome to EL Timetable</h5><p>Select a teacher to view sessions.</p>", teachers=teachers)
+    teacher_list = "".join(f"<li>{t.name}</li>" for t in teachers) if teachers else "<li>No teachers yet</li>"
+    return render("<h5>Welcome to EL Timetable</h5><ul>" + teacher_list + "</ul>")
 
 @app.route("/weekly_timetable")
 def weekly_timetable():
-    return render("<h5>Weekly timetable grid (to be implemented)</h5>")
+    sessions = current_month_sessions().all()
+    rows = "".join(f"<tr><td>{s.session_date}</td><td>{s.teacher.name}</td><td>{s.student.name}</td><td>{s.subject.name}</td></tr>" for s in sessions)
+    return render("<h5>Weekly Timetable</h5><table class='table'><tr><th>Date</th><th>Teacher</th><th>Student</th><th>Subject</th></tr>" + rows + "</table>")
 
 @app.route("/teachers")
 def manage_teachers():
-    return render("<h5>Teachers management page (to be implemented)</h5>")
+    teachers = Teacher.query.all()
+    rows = "".join(f"<li>{t.name} ({t.nickname or ''})</li>" for t in teachers)
+    return render("<h5>Teachers</h5><ul>" + rows + "</ul>")
 
 @app.route("/students")
 def manage_students():
-    return render("<h5>Students management page (to be implemented)</h5>")
+    students = Student.query.all()
+    rows = "".join(f"<li>{s.name} (Rate: {s.rate_per_class})</li>" for s in students)
+    return render("<h5>Students</h5><ul>" + rows + "</ul>")
 
 @app.route("/subjects")
 def manage_subjects():
-    return render("<h5>Subjects management page (to be implemented)</h5>")
+    subjects = Subject.query.all()
+    rows = "".join(f"<li>{sub.name}</li>" for sub in subjects)
+    return render("<h5>Subjects</h5><ul>" + rows + "</ul>")
 
 @app.route("/sessions/add")
 def add_session():
-    return render("<h5>Add session page (to be implemented)</h5>")
+    return render("<h5>Add Session form (to be implemented)</h5>")
 
 @app.route("/payments")
 def payments():
-    return render("<h5>Payments page (to be implemented)</h5>")
+    students = Student.query.all()
+    rows = "".join(f"<li>{s.name}: {len(s.sessions)} sessions × {s.rate_per_class} = {len(s.sessions)*s.rate_per_class}</li>" for s in students)
+    return render("<h5>Payments</h5><ul>" + rows + "</ul>")
 
 @app.route("/teacher_totals")
 def teacher_totals():
-    return render("<h5>Teacher totals page (to be implemented)</h5>")
+    teachers = Teacher.query.all()
+    rows = "".join(f"<li>{t.name}: {len(t.sessions)} sessions</li>" for t in teachers)
+    return render("<h5>Teacher Totals</h5><ul>" + rows + "</ul>")
 
 @app.route("/logs")
 def logs():
     entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
-    return render("<h5>Logs page (to be implemented)</h5>", entries=entries)
+    rows = "".join(f"<li>{e.timestamp}: {e.action} - {e.details}</li>" for e in entries)
+    return render("<h5>Logs</h5><ul>" + rows + "</ul>")
 
 # -------------------------
 # Run the app (important for Render)
