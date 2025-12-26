@@ -360,6 +360,45 @@ def download_weekly(format):
         output.seek(0)
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          download_name=f"weekly_{start_week.strftime('%Y_%m_%d')}.xlsx", as_attachment=True)
+@app.route("/download_weekly_all/<format>")
+def download_weekly_all(format):
+    today = date.today()
+    start_week = today - timedelta(days=today.weekday())
+    end_week = start_week + timedelta(days=7)
+    sessions = ClassSession.query.filter(
+        ClassSession.session_date >= start_week,
+        ClassSession.session_date < end_week
+    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
+
+    data = []
+    for s in sessions:
+        data.append({
+            "Date": s.session_date.isoformat(),
+            "Day": calendar.day_name[s.session_date.weekday()],
+            "Start": s.start_time.strftime("%H:%M"),
+            "End": s.end_time.strftime("%H:%M"),
+            "Teacher": s.teacher.name,
+            "Nickname": s.teacher.nickname or "",
+            "Student": s.student.name,
+            "Subject": s.subject.name,
+            "Notes": s.notes or ""
+        })
+    df = pd.DataFrame(data)
+
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()),
+                         mimetype="text/csv",
+                         download_name=f"weekly_all_{start_week.strftime('%Y_%m_%d')}.csv",
+                         as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name=f"weekly_all_{start_week.strftime('%Y_%m_%d')}.xlsx",
+                         as_attachment=True)
 
 # -------------------------
 # Teachers management (with nickname)
