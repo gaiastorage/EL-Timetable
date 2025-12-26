@@ -314,7 +314,7 @@ def weekly_timetable():
       </table>
     {% endfor %}
     """
-     return render(page,
+    return render(page,
                teacher_groups=teacher_groups,
                days=days,
                hours=hours,
