@@ -234,7 +234,7 @@ def weekly_timetable():
         entry = f"{s.student.name} - {s.subject.name} ({nick})"
         combined_slots.setdefault((day_name, hour_str), []).append(entry)
 
-     page = """
+    page = """
     <div class="d-flex gap-2 mb-2">
       <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='csv') }}">Download Weekly CSV</a>
       <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='excel') }}">Download Weekly Excel</a>
@@ -314,9 +314,14 @@ def weekly_timetable():
       </table>
     {% endfor %}
     """
-    return render(page, teacher_groups=teacher_groups, days=days, hours=hours,
-                  start_week=start_week, end_week=end_week, timedelta=timedelta,
-                  combined_slots=combined_slots)
+     return render(page,
+               teacher_groups=teacher_groups,
+               days=days,
+               hours=hours,
+               start_week=start_week,
+               end_week=end_week,
+               timedelta=timedelta,
+               combined_slots=combined_slots)
 
 # -------------------------
 # Weekly download routes
