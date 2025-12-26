@@ -54,46 +54,117 @@ class LogEntry(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # -------------------------
+# Base template
+# -------------------------
+BASE = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>EL Timetable</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding-top: 2rem; }
+    .timecell { white-space: nowrap; }
+    .sticky-th { position: sticky; top: 0; background: #f8f9fa; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-light border-bottom mb-4">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{{ url_for('home') }}">Scheduler</a>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('home') }}">Timetable</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_teachers') }}">Teachers</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_students') }}">Students</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_subjects') }}">Subjects</a>
+      <a class="btn btn-outline-success btn-sm" href="{{ url_for('add_session') }}">Add Session</a>
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('payments') }}">Payments</a>
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('teacher_totals') }}">Teacher Totals</a>
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('weekly_timetable') }}">Weekly Grid</a>
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('logs') }}">Logs</a>
+    </div>
+  </div>
+</nav>
+<div class="container">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="alert alert-info">{{ messages[0] }}</div>
+    {% endif %}
+  {% endwith %}
+  {{ content|safe }}
+</div>
+</body>
+</html>
+"""
+
+def render(page, **kwargs):
+    return render_template_string(BASE, content=render_template_string(page, **kwargs))
+
+def parse_date(s):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except:
+        return None
+
+def parse_time(s):
+    try:
+        return datetime.strptime(s, "%H:%M").time()
+    except:
+        return None
+
+def current_month_sessions():
+    today = date.today()
+    return ClassSession.query.filter(
+        extract("year", ClassSession.session_date) == today.year,
+        extract("month", ClassSession.session_date) == today.month
+    )
+
+def log_action(action, details=""):
+    entry = LogEntry(action=action, details=details)
+    db.session.add(entry)
+    db.session.commit()
+
+# -------------------------
 # Routes
 # -------------------------
 @app.route("/")
 def home():
-    # Query teachers to prove DB works
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    teacher_list = ", ".join([t.name for t in teachers]) if teachers else "No teachers yet"
-    return f"<h3>Welcome to EL Timetable</h3><p>Teachers: {teacher_list}</p>"
+    return render("<h5>Welcome to EL Timetable</h5><p>Select a teacher to view sessions.</p>", teachers=teachers)
 
 @app.route("/weekly_timetable")
 def weekly_timetable():
-    return "Weekly timetable page (to be implemented)."
+    return render("<h5>Weekly timetable grid (to be implemented)</h5>")
 
 @app.route("/teachers")
 def manage_teachers():
-    return "Teachers management page (to be implemented)."
+    return render("<h5>Teachers management page (to be implemented)</h5>")
 
 @app.route("/students")
 def manage_students():
-    return "Students management page (to be implemented)."
+    return render("<h5>Students management page (to be implemented)</h5>")
 
 @app.route("/subjects")
 def manage_subjects():
-    return "Subjects management page (to be implemented)."
+    return render("<h5>Subjects management page (to be implemented)</h5>")
 
 @app.route("/sessions/add")
 def add_session():
-    return "Add session page (to be implemented)."
+    return render("<h5>Add session page (to be implemented)</h5>")
 
 @app.route("/payments")
 def payments():
-    return "Payments page (to be implemented)."
+    return render("<h5>Payments page (to be implemented)</h5>")
 
 @app.route("/teacher_totals")
 def teacher_totals():
-    return "Teacher totals page (to be implemented)."
+    return render("<h5>Teacher totals page (to be implemented)</h5>")
 
 @app.route("/logs")
 def logs():
-    return "Logs page (to be implemented)."
+    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
+    return render("<h5>Logs page (to be implemented)</h5>", entries=entries)
 
 # -------------------------
 # Run the app (important for Render)
