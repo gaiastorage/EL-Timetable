@@ -200,4 +200,5 @@ def add_session():
     students = Student.query.all()
     subjects = Subject.query.all()
     if request.method == "POST":
-        teacher_id = int(request.form.get
+        teacher_id = int(request.form.get("teacher_id"))
+        student_id = int(request.form
