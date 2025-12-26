@@ -724,31 +724,31 @@ def teacher_totals():
     for t in teachers:
         sessions = current_month_sessions().filter_by(teacher_id=t.id).all()
         hourly_sessions = len(sessions)
-        student_subject_counts = {}
+
+        # count sessions per subject
+        subject_counts = {}
         for s in sessions:
-            key = f"{s.student.name} - {s.subject.name}"
-            student_subject_counts[key] = student_subject_counts.get(key, 0) + 1
+            subj = s.subject.name
+            subject_counts[subj] = subject_counts.get(subj, 0) + 1
+
         totals_data.append({
             "teacher": t,
             "hourly_sessions": hourly_sessions,
-            "student_subject_counts": student_subject_counts
+            "subject_counts": subject_counts
         })
+
     page = """
-    <div class="d-flex gap-2 mb-2">
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_totals', format='csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_totals', format='excel') }}">Download Excel</a>
-    </div>
     <h5>Teacher Totals ({{ today.strftime('%B %Y') }})</h5>
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Teacher</th><th>Hourly Sessions</th><th>Students & Subjects</th></tr></thead>
+      <thead><tr><th>Teacher</th><th>Hourly Sessions</th><th>Subjects</th></tr></thead>
       <tbody>
         {% for row in totals_data %}
           <tr>
             <td>{{ row.teacher.name }}{% if row.teacher.nickname %} ({{ row.teacher.nickname }}){% endif %}</td>
             <td>{{ row.hourly_sessions }}</td>
             <td>
-              {% for key, count in row.student_subject_counts.items() %}
-                {{ key }}: {{ count }}<br>
+              {% for subj, count in row.subject_counts.items() %}
+                {{ subj }}: {{ count }}<br>
               {% endfor %}
             </td>
           </tr>
@@ -757,7 +757,6 @@ def teacher_totals():
     </table>
     """
     return render(page, totals_data=totals_data, today=today)
-
 @app.route("/download_totals/<format>")
 def download_totals(format):
     today = date.today()
