@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, date
+from datetime import datetime
 from flask import Flask, request, redirect, url_for, render_template_string, flash
 from flask_sqlalchemy import SQLAlchemy
 
@@ -88,13 +88,13 @@ def render(page, **kwargs):
 def parse_date(s):
     try:
         return datetime.strptime(s, "%Y-%m-%d").date()
-    except:
+    except Exception:
         return None
 
 def parse_time(s):
     try:
         return datetime.strptime(s, "%H:%M").time()
-    except:
+    except Exception:
         return None
 
 def log_action(action, details=""):
@@ -107,14 +107,18 @@ def log_action(action, details=""):
 # -------------------------
 @app.route("/")
 def home():
-    sessions = ClassSession.query.order_by(ClassSession.session_date.asc()).all()
+    sessions = ClassSession.query.order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
     rows = "".join(
         f"<tr><td>{s.session_date}</td><td>{s.start_time}-{s.end_time}</td>"
         f"<td>{s.teacher.name}</td><td>{s.student.name}</td><td>{s.subject.name}</td>"
         f"<td><a href='{url_for('delete_session', session_id=s.id)}' class='btn btn-sm btn-danger'>Delete</a></td></tr>"
         for s in sessions
     )
-    return render("<h5>All Sessions</h5><table class='table'><tr><th>Date</th><th>Time</th><th>Teacher</th><th>Student</th><th>Subject</th><th>Action</th></tr>" + rows + "</table>")
+    return render(
+        "<h5>All Sessions</h5>"
+        "<table class='table'><tr><th>Date</th><th>Time</th><th>Teacher</th><th>Student</th><th>Subject</th><th>Action</th></tr>"
+        + rows + "</table>"
+    )
 
 @app.route("/sessions/delete/<int:session_id>")
 def delete_session(session_id):
@@ -197,9 +201,84 @@ def add_session():
     teachers = Teacher.query.all()
     students = Student.query.all()
     subjects = Subject.query.all()
+
     if request.method == "POST":
         teacher_id = int(request.form.get("teacher_id"))
         student_id = int(request.form.get("student_id"))
         subject_id = int(request.form.get("subject_id"))
         session_date = parse_date(request.form.get("session_date"))
-        start_time = parse
+        start_time = parse_time(request.form.get("start_time"))
+        end_time = parse_time(request.form.get("end_time"))
+        notes = request.form.get("notes")
+
+        if not (teacher_id and student_id and subject_id and session_date and start_time and end_time):
+            flash("Please fill all required fields (teacher, student, subject, date, start, end).")
+            return redirect(url_for("add_session"))
+
+        s = ClassSession(
+            teacher_id=teacher_id,
+            student_id=student_id,
+            subject_id=subject_id,
+            session_date=session_date,
+            start_time=start_time,
+            end_time=end_time,
+            notes=notes
+        )
+        db.session.add(s)
+        db.session.commit()
+        log_action("Add Session", f"{session_date} teacher={teacher_id} student={student_id}")
+        flash("Session added!")
+        return redirect(url_for("home"))
+
+    form = """
+    <form method="post">
+      <label>Teacher</label>
+      <select class="form-select mb-2" name="teacher_id">
+        {% for t in teachers %}<option value="{{t.id}}">{{t.name}}</option>{% endfor %}
+      </select>
+      <label>Student</label>
+      <select class="form-select mb-2" name="student_id">
+        {% for s in students %}<option value="{{s.id}}">{{s.name}}</option>{% endfor %}
+      </select>
+      <label>Subject</label>
+      <select class="form-select mb-2" name="subject_id">
+        {% for sub in subjects %}<option value="{{sub.id}}">{{sub.name}}</option>{% endfor %}
+      </select>
+      <input class="form-control mb-2" name="session_date" placeholder="YYYY-MM-DD">
+      <input class="form-control mb-2" name="start_time" placeholder="HH:MM">
+      <input class="form-control mb-2" name="end_time" placeholder="HH:MM">
+      <input class="form-control mb-2" name="notes" placeholder="Notes">
+      <button class="btn btn-success" type="submit">Add Session</button>
+    </form>
+    """
+    return render("<h5>Add Session</h5>" + form, teachers=teachers, students=students, subjects=subjects)
+
+@app.route("/payments")
+def payments():
+    students = Student.query.all()
+    rows = "".join(
+        f"<li>{s.name}: {len(s.sessions)} sessions × {s.rate_per_class} = {len(s.sessions) * s.rate_per_class:.2f}</li>"
+        for s in students
+    )
+    return render("<h5>Payments</h5><ul>" + rows + "</ul>")
+
+@app.route("/teacher_totals")
+def teacher_totals():
+    teachers = Teacher.query.all()
+    rows = "".join(f"<li>{t.name}: {len(t.sessions)} sessions</li>" for t in teachers)
+    return render("<h5>Teacher Totals</h5><ul>" + rows + "</ul>")
+
+@app.route("/logs")
+def logs():
+    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
+    rows = "".join(f"<li>{e.timestamp}: {e.action} - {e.details}</li>" for e in entries)
+    return render("<h5>Logs</h5><ul>" + rows + "</ul>")
+
+# -------------------------
+# Run
+# -------------------------
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
