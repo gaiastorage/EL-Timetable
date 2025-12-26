@@ -130,15 +130,15 @@ def log_action(action, details=""):
 # -------------------------
 @app.route("/")
 def home():
-    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    teacher_list = "".join(f"<li>{t.name}</li>" for t in teachers) if teachers else "<li>No teachers yet</li>"
-    return render("<h5>Welcome to EL Timetable</h5><ul>" + teacher_list + "</ul>")
+    sessions = current_month_sessions().all()
+    rows = "".join(f"<tr><td>{s.session_date}</td><td>{s.teacher.name}</td><td>{s.student.name}</td><td>{s.subject.name}</td></tr>" for s in sessions)
+    return render("<h5>Current Month Timetable</h5><table class='table'><tr><th>Date</th><th>Teacher</th><th>Student</th><th>Subject</th></tr>" + rows + "</table>")
 
 @app.route("/weekly_timetable")
 def weekly_timetable():
-    sessions = current_month_sessions().all()
-    rows = "".join(f"<tr><td>{s.session_date}</td><td>{s.teacher.name}</td><td>{s.student.name}</td><td>{s.subject.name}</td></tr>" for s in sessions)
-    return render("<h5>Weekly Timetable</h5><table class='table'><tr><th>Date</th><th>Teacher</th><th>Student</th><th>Subject</th></tr>" + rows + "</table>")
+    sessions = ClassSession.query.order_by(ClassSession.session_date.asc()).all()
+    rows = "".join(f"<tr><td>{s.session_date}</td><td>{s.start_time}-{s.end_time}</td><td>{s.teacher.name}</td><td>{s.student.name}</td><td>{s.subject.name}</td></tr>" for s in sessions)
+    return render("<h5>Weekly Grid</h5><table class='table'><tr><th>Date</th><th>Time</th><th>Teacher</th><th>Student</th><th>Subject</th></tr>" + rows + "</table>")
 
 @app.route("/teachers")
 def manage_teachers():
@@ -184,7 +184,6 @@ def logs():
 # Run the app (important for Render)
 # -------------------------
 if __name__ == "__main__":
-    # Ensure tables exist before serving
     with app.app_context():
         db.create_all()
     port = int(os.environ.get("PORT", 5000))
