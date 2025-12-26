@@ -132,7 +132,61 @@ def home():
     for s in sessions:
         d = s.session_date.isoformat()
         grouped.setdefault(d, []).append(s)
-    page = """ ... timetable HTML ... """
+    page = """
+    <h5>Timetable</h5>
+    <form method="get" class="mb-3">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <select class="form-select" name="teacher_id">
+            <option value="">-- choose teacher --</option>
+            {% for t in teachers %}
+              <option value="{{ t.id }}" {% if selected_teacher and selected_teacher.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary w-100">View</button>
+        </div>
+      </div>
+    </form>
+    {% if selected_teacher %}
+      <h6>Timetable for {{ selected_teacher.name }} ({{ (date.today()).strftime('%B %Y') }})</h6>
+      {% if grouped %}
+        {% for day, items in grouped.items() %}
+          <h6 class="mt-3">{{ day }}</h6>
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th class="timecell">Start</th>
+                <th class="timecell">End</th>
+                <th>Student</th>
+                <th>Subject</th>
+                <th>Notes</th>
+                <th style="width:140px">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in items %}
+                <tr>
+                  <td class="timecell">{{ s.start_time.strftime("%H:%M") }}</td>
+                  <td class="timecell">{{ s.end_time.strftime("%H:%M") }}</td>
+                  <td>{{ s.student.name }}</td>
+                  <td>{{ s.subject.name }}</td>
+                  <td>{{ s.notes or "" }}</td>
+                  <td>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_session', session_id=s.id) }}">Edit</a>
+                    <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_session', session_id=s.id) }}" onclick="return confirm('Delete this session?')">Delete</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+      {% else %}
+        <div class="alert alert-secondary">No sessions for this month. Use "Add Session" to create one.</div>
+      {% endif %}
+    {% endif %}
+    """
     return render(page, teachers=teachers, selected_teacher=selected_teacher, grouped=grouped, date=date)
 
 @app.route("/teachers", methods=["GET","POST"])
@@ -148,7 +202,26 @@ def manage_teachers():
             flash("Invalid or duplicate teacher.")
         return redirect(url_for("manage_teachers"))
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    page = """ ... teachers form + list HTML ... """
+    page = """
+    <h5>Teachers</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-auto"><input class="form-control" name="name" placeholder="New teacher name"></div>
+      <div class="col-auto"><button class="btn btn-primary">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for t in teachers %}
+          <tr>
+            <td>{{ t.name }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_teacher', teacher_id=t.id) }}" onclick="return confirm('Delete teacher and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    """
     return render(page, teachers=teachers)
 
 @app.route("/students", methods=["GET","POST"])
@@ -166,7 +239,28 @@ def manage_students():
         return redirect(url_for("manage_students"))
 
     students = Student.query.order_by(Student.name.asc()).all()
-    page = """ ... students form + list HTML ... """
+    page = """
+    <h5>Students</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
+      <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for s in students %}
+          <tr>
+            <td>{{ s.name }}</td>
+            <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_student', student_id=s.id) }}" onclick="return confirm('Delete student and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    """
     return render(page, students=students)
 
 @app.route("/subjects", methods=["GET","POST"])
