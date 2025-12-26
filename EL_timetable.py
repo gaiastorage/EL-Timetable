@@ -188,4 +188,16 @@ def manage_subjects():
     rows = "".join(f"<li>{sub.name}</li>" for sub in subjects)
     form = """
     <form method="post" class="mb-3">
-      <input name="name" class="form-control mb
+      <input name="name" class="form-control mb-2" placeholder="Subject name">
+      <button class="btn btn-primary">Add Subject</button>
+    </form>
+    """
+    return render("<h5>Subjects</h5>" + form + "<ul>" + rows + "</ul>")
+
+@app.route("/sessions/add", methods=["GET", "POST"])
+def add_session():
+    teachers = Teacher.query.all()
+    students = Student.query.all()
+    subjects = Subject.query.all()
+    if request.method == "POST":
+        teacher_id = int(request.form.get
