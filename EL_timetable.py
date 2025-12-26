@@ -58,3 +58,10 @@ class LogEntry(db.Model):
     action = db.Column(db.String(120), nullable=False)
     details = db.Column(db.String(255), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# -------------------------
+# Run the app (important for Render)
+# -------------------------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
