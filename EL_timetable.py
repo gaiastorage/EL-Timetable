@@ -225,15 +225,62 @@ def weekly_timetable():
         hour_str = s.start_time.strftime("%H:00")
         st_map["slots"][(day_name, hour_str)] = f"{s.student.name} - {s.subject.name} ({nick})"
 
-    page = """
+    # Build combined slots for all teachers
+    combined_slots = {}
+    for s in sessions:
+        day_name = calendar.day_name[s.session_date.weekday()]
+        hour_str = s.start_time.strftime("%H:00")
+        nick = s.teacher.nickname or s.teacher.name
+        entry = f"{s.student.name} - {s.subject.name} ({nick})"
+        combined_slots.setdefault((day_name, hour_str), []).append(entry)
+
+     page = """
     <div class="d-flex gap-2 mb-2">
       <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='csv') }}">Download Weekly CSV</a>
       <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='excel') }}">Download Weekly Excel</a>
+      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly_all', format='csv') }}">Download All Teachers CSV</a>
+      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly_all', format='excel') }}">Download All Teachers Excel</a>
     </div>
+
     <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
+
+    <!-- Combined table -->
+    <h6 class="mt-3">All Teachers Combined</h6>
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th class="sticky-th" style="width:90px">Hour</th>
+          {% for d in days %}
+            <th class="sticky-th">{{ d }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for hour in hours %}
+          <tr>
+            <td class="timecell">{{ hour }}</td>
+            {% for d in days %}
+              <td style="min-width:200px">
+                {% set entries = combined_slots.get((d, hour), []) %}
+                {% if entries %}
+                  {% for e in entries %}
+                    {{ e }}<br>
+                  {% endfor %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
     {% if not teacher_groups %}
       <div class="alert alert-secondary">No sessions scheduled this week.</div>
     {% endif %}
+
+    <!-- Individual teacher tables -->
     {% for tg in teacher_groups.values() %}
       <h6 class="mt-4">Teacher: {{ tg.teacher.name }}{% if tg.teacher.nickname %} ({{ tg.teacher.nickname }}){% endif %}</h6>
       <table class="table table-sm table-bordered">
@@ -268,7 +315,8 @@ def weekly_timetable():
     {% endfor %}
     """
     return render(page, teacher_groups=teacher_groups, days=days, hours=hours,
-                  start_week=start_week, end_week=end_week, timedelta=timedelta)
+                  start_week=start_week, end_week=end_week, timedelta=timedelta,
+                  combined_slots=combined_slots)
 
 # -------------------------
 # Weekly download routes
