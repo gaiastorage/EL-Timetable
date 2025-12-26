@@ -203,28 +203,39 @@ def manage_teachers():
         return redirect(url_for("manage_teachers"))
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
     page = """
-   <h5>Teachers</h5>
-<form method="post" class="row g-2 mb-3">
-  <div class="col-auto"><input class="form-control" name="name" placeholder="New teacher name"></div>
-  <div class="col-auto"><button class="btn btn-primary">Add</button></div>
-</form>
-<table class="table table-sm table-bordered">
-  <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
-  <tbody>
-    {% for t in teachers %}
-      <tr>
-        <td>{{ t.name }}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-danger"
-             href="{{ url_for('delete_teacher', teacher_id=t.id) }}"
-             onclick="return confirm('Delete teacher and their sessions?')">Delete</a>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <h5>Teachers</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-auto"><input class="form-control" name="name" placeholder="New teacher name"></div>
+      <div class="col-auto"><button class="btn btn-primary">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for t in teachers %}
+          <tr>
+            <td>{{ t.name }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_teacher', teacher_id=t.id) }}"
+                 onclick="return confirm('Delete teacher and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
     return render(page, teachers=teachers)
+
+@app.route("/teachers/<int:teacher_id>/delete")
+def delete_teacher(teacher_id):
+    t = Teacher.query.get_or_404(teacher_id)
+    for s in t.sessions:
+        db.session.delete(s)
+    db.session.delete(t)
+    db.session.commit()
+    log_action("delete_teacher", f"Deleted teacher {t.name}")
+    flash("Teacher deleted.")
+    return redirect(url_for("manage_teachers"))
 
 @app.route("/students", methods=["GET","POST"])
 def manage_students():
@@ -243,29 +254,40 @@ def manage_students():
     students = Student.query.order_by(Student.name.asc()).all()
     page = """
     <h5>Students</h5>
-<form method="post" class="row g-2 mb-3">
-  <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
-  <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
-  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-</form>
-<table class="table table-sm table-bordered">
-  <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
-  <tbody>
-    {% for s in students %}
-      <tr>
-        <td>{{ s.name }}</td>
-        <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-danger"
-             href="{{ url_for('delete_student', student_id=s.id) }}"
-             onclick="return confirm('Delete student and their sessions?')">Delete</a>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
+      <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for s in students %}
+          <tr>
+            <td>{{ s.name }}</td>
+            <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_student', student_id=s.id) }}"
+                 onclick="return confirm('Delete student and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
     return render(page, students=students)
+
+@app.route("/students/<int:student_id>/delete")
+def delete_student(student_id):
+    s = Student.query.get_or_404(student_id)
+    for sess in s.sessions:
+        db.session.delete(sess)
+    db.session.delete(s)
+    db.session.commit()
+    log_action("delete_student", f"Deleted student {s.name}")
+    flash("Student deleted.")
+    return redirect(url_for("manage_students"))
 
 @app.route("/subjects", methods=["GET","POST"])
 def manage_subjects():
@@ -283,28 +305,38 @@ def manage_subjects():
     subjects = Subject.query.order_by(Subject.name.asc()).all()
     page = """
     <h5>Subjects</h5>
-<form method="post" class="row g-2 mb-3">
-  <div class="col-md-6"><input class="form-control" name="name" placeholder="Subject name"></div>
-  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-</form>
-<table class="table table-sm table-bordered">
-  <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
-  <tbody>
-    {% for sub in subjects %}
-      <tr>
-        <td>{{ sub.name }}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-danger"
-             href="{{ url_for('delete_subject', subject_id=sub.id) }}"
-             onclick="return confirm('Delete subject and its sessions?')">Delete</a>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-6"><input class="form-control" name="name" placeholder="Subject name"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for sub in subjects %}
+          <tr>
+            <td>{{ sub.name }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_subject', subject_id=sub.id) }}"
+                 onclick="return confirm('Delete subject and its sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
     return render(page, subjects=subjects)
 
+@app.route("/subjects/<int:subject_id>/delete")
+def delete_subject(subject_id):
+    sub = Subject.query.get_or_404(subject_id)
+    for sess in sub.sessions:
+        db.session.delete(sess)
+    db.session.delete(sub)
+    db.session.commit()
+    log_action("delete_subject", f"Deleted subject {sub.name}")
+    flash("Subject deleted.")
+    return redirect(url_for("manage_subjects"))
 @app.route("/sessions/add", methods=["GET","POST"])
 def add_session():
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
