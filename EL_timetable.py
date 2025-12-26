@@ -225,18 +225,18 @@ def weekly_timetable():
         hour_str = s.start_time.strftime("%H:00")
         st_map["slots"][(day_name, hour_str)] = f"{s.student.name} - {s.subject.name} ({nick})"
 
-# Build combined slots for all teachers
+    # Build combined slots for all teachers
     combined_slots = {}
     for s in sessions:
-    day_name = calendar.day_name[s.session_date.weekday()]
-    hour_str = s.start_time.strftime("%H:00")
-    nick = s.teacher.nickname or s.teacher.name
-    entry = f"{s.student.name} - {s.subject.name} ({nick})"
-    combined_slots.setdefault((day_name, hour_str), []).append(entry)
+        day_name = calendar.day_name[s.session_date.weekday()]
+        hour_str = s.start_time.strftime("%H:00")
+        nick = s.teacher.nickname or s.teacher.name
+        entry = f"{s.student.name} - {s.subject.name} ({nick})"
+        combined_slots.setdefault((day_name, hour_str), []).append(entry)
 
-# NEW: sort entries by teacher nickname
-for key in combined_slots:
-    combined_slots[key].sort(key=lambda e: e.split("(")[-1].strip(")"))
+    # Sort entries by teacher nickname
+    for key in combined_slots:
+        combined_slots[key].sort(key=lambda e: e.split("(")[-1].strip(")"))
 
 
 
