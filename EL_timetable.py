@@ -60,6 +60,13 @@ class LogEntry(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # -------------------------
+# Routes
+# -------------------------
+@app.route("/")
+def home():
+    return "Hello, world! Timetable app is running."
+
+# -------------------------
 # Run the app (important for Render)
 # -------------------------
 if __name__ == "__main__":
