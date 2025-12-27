@@ -664,8 +664,8 @@ page = """
     {% endfor %}
   </tbody>
 </table>
-"""
-return render(page,
+    """
+    return render(page,
               student_subject_rows=student_subject_rows,
               subject_counts=subject_counts,
               subjects=subjects)
