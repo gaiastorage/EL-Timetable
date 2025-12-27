@@ -342,29 +342,60 @@ def delete_teacher(teacher_id):
 def teacher_totals():
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
     totals = []
+
     for t in teachers:
+        # Count sessions
+        session_count = len(t.sessions)
+
+        # Build subject -> student count mapping
+        subject_counts = {}
+        for s in t.sessions:
+            subj_name = s.subject.name
+            subject_counts[subj_name] = subject_counts.get(subj_name, 0) + 1
+
+        # Total students = sum of subject counts
+        total_students = sum(subject_counts.values())
+
         totals.append({
             "name": t.name,
             "nickname": t.nickname or "",
-            "sessions": len(t.sessions)
+            "sessions": session_count,
+            "total_students": total_students,
+            "subject_counts": subject_counts
         })
+
     page = """
     <h5>Teacher Totals</h5>
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th>Nickname</th><th>Sessions</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Nickname</th>
+          <th>Sessions</th>
+          <th>Total Students</th>
+          <th>Subject Breakdown</th>
+        </tr>
+      </thead>
       <tbody>
         {% for row in totals %}
           <tr>
             <td>{{ row.name }}</td>
             <td>{{ row.nickname }}</td>
             <td>{{ row.sessions }}</td>
+            <td>{{ row.total_students }}</td>
+            <td>
+              <ul class="mb-0">
+                {% for subj, count in row.subject_counts.items() %}
+                  <li>{{ subj }}: {{ count }}</li>
+                {% endfor %}
+              </ul>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
     """
     return render(page, totals=totals)
-
 # -------------------------
 # Weekly grid timetable (grouped by teacher)
 # -------------------------
@@ -578,98 +609,135 @@ def manage_students():
     subjects = Subject.query.order_by(Subject.name.asc()).all()
 
     if request.method == "POST":
-        # ... your existing add student logic ...
+        # --- Add new student logic ---
+        name = request.form.get("name", "").strip()
+        student_id = request.form.get("student_id", "").strip() or None
+        id_number = request.form.get("id_number", "").strip() or None
+        telephone = request.form.get("telephone", "").strip() or None
+        mobile = request.form.get("mobile", "").strip() or None
+        contact1_name = request.form.get("contact1_name", "").strip() or None
+        contact1_phone = request.form.get("contact1_phone", "").strip() or None
+        contact2_name = request.form.get("contact2_name", "").strip() or None
+        contact2_phone = request.form.get("contact2_phone", "").strip() or None
+        address = request.form.get("address", "").strip() or None
+
+        if not name:
+            flash("Student name cannot be empty.")
+        elif Student.query.filter_by(name=name).first():
+            flash("Student already exists.")
+        else:
+            new_student = Student(
+                name=name,
+                student_id=student_id,
+                id_number=id_number,
+                telephone=telephone,
+                mobile=mobile,
+                contact1_name=contact1_name,
+                contact1_phone=contact1_phone,
+                contact2_name=contact2_name,
+                contact2_phone=contact2_phone,
+                address=address
+            )
+            # Assign subjects
+            for sid in request.form.getlist("subjects"):
+                subj = Subject.query.get(int(sid))
+                if subj:
+                    new_student.subjects.append(subj)
+
+            db.session.add(new_student)
+            db.session.commit()
+            log_action("add_student", f"Added student {name}")
+            flash("Student added.")
+
         return redirect(url_for("manage_students"))
 
-    # Build list of (student, subject) pairs
+    # --- Build list of (student, subject) pairs and subject counts ---
     students = Student.query.order_by(Student.name.asc()).all()
+    student_subject_rows = []
+    subject_counts = {}
+    for s in students:
+        if s.subjects:
+            for subj in s.subjects:
+                student_subject_rows.append((s, subj))
+                subject_counts[subj.name] = subject_counts.get(subj.name, 0) + 1
+        else:
+            student_subject_rows.append((s, None))
 
-# Build list of (student, subject) pairs and subject counts
-student_subject_rows = []
-subject_counts = {}
-for s in students:
-    if s.subjects:
-        for subj in s.subjects:
-            student_subject_rows.append((s, subj))
-            subject_counts[subj.name] = subject_counts.get(subj.name, 0) + 1
-    else:
-        student_subject_rows.append((s, None))
+    page = """
+    <h5>Total Student-Subject Enrollments: {{ student_subject_rows|length }}</h5>
 
-page = """
-<h5>Total Student-Subject Enrollments: {{ student_subject_rows|length }}</h5>
-
-<h6>Subject Breakdown</h6>
-<ul>
-  {% for subj, count in subject_counts.items() %}
-    <li>{{ subj }}: {{ count }} students</li>
-  {% endfor %}
-</ul>
-
-<form method="post" class="row g-2 mb-3">
-  <div class="col-md-4"><label class="form-label">Name</label><input class="form-control" name="name" placeholder="Name"></div>
-  <div class="col-md-3"><label class="form-label">Student ID</label><input class="form-control" name="student_id" placeholder="Student ID"></div>
-  <div class="col-md-3"><label class="form-label">ID Number</label><input class="form-control" name="id_number" placeholder="ID Number"></div>
-  <div class="col-md-3"><label class="form-label">Telephone</label><input class="form-control" name="telephone" placeholder="Telephone"></div>
-  <div class="col-md-3"><label class="form-label">Mobile</label><input class="form-control" name="mobile" placeholder="Mobile"></div>
-  <div class="col-md-3"><label class="form-label">Contact 1 Name</label><input class="form-control" name="contact1_name" placeholder="Contact 1 Name"></div>
-  <div class="col-md-3"><label class="form-label">Contact 1 Phone</label><input class="form-control" name="contact1_phone" placeholder="Contact 1 Phone"></div>
-  <div class="col-md-3"><label class="form-label">Contact 2 Name</label><input class="form-control" name="contact2_name" placeholder="Contact 2 Name"></div>
-  <div class="col-md-3"><label class="form-label">Contact 2 Phone</label><input class="form-control" name="contact2_phone" placeholder="Contact 2 Phone"></div>
-  <div class="col-md-6"><label class="form-label">Address</label><input class="form-control" name="address" placeholder="Address"></div>
-  <div class="col-md-6">
-    <label class="form-label">Subjects</label>
-    <select class="form-select" name="subjects" multiple>
-      {% for subj in subjects %}
-        <option value="{{ subj.id }}">{{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})</option>
+    <h6>Subject Breakdown</h6>
+    <ul>
+      {% for subj, count in subject_counts.items() %}
+        <li>{{ subj }}: {{ count }} students</li>
       {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-</form>
+    </ul>
 
-<table class="table table-sm table-bordered">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Student ID</th>
-      <th>ID Number</th>
-      <th>Telephone</th>
-      <th>Mobile</th>
-      <th>Contact1</th>
-      <th>Contact2</th>
-      <th>Address</th>
-      <th>Subject</th>
-      <th style="width:160px">Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for s, subj in student_subject_rows %}
-      <tr>
-        <td><a href="{{ url_for('edit_student', student_id=s.id) }}">{{ s.name }}</a></td>
-        <td>{{ s.student_id or "" }}</td>
-        <td>{{ s.id_number or "" }}</td>
-        <td>{{ s.telephone or "" }}</td>
-        <td>{{ s.mobile or "" }}</td>
-        <td>{{ s.contact1_name or "" }} {{ s.contact1_phone or "" }}</td>
-        <td>{{ s.contact2_name or "" }} {{ s.contact2_phone or "" }}</td>
-        <td>{{ s.address or "" }}</td>
-        <td>{{ subj.name if subj else "" }}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_student', student_id=s.id) }}">Edit</a>
-          <a class="btn btn-sm btn-outline-danger"
-             href="{{ url_for('delete_student', student_id=s.id) }}"
-             onclick="return confirm('Delete student and their sessions?')">Delete</a>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-4"><label class="form-label">Name</label><input class="form-control" name="name" placeholder="Name"></div>
+      <div class="col-md-3"><label class="form-label">Student ID</label><input class="form-control" name="student_id" placeholder="Student ID"></div>
+      <div class="col-md-3"><label class="form-label">ID Number</label><input class="form-control" name="id_number" placeholder="ID Number"></div>
+      <div class="col-md-3"><label class="form-label">Telephone</label><input class="form-control" name="telephone" placeholder="Telephone"></div>
+      <div class="col-md-3"><label class="form-label">Mobile</label><input class="form-control" name="mobile" placeholder="Mobile"></div>
+      <div class="col-md-3"><label class="form-label">Contact 1 Name</label><input class="form-control" name="contact1_name" placeholder="Contact 1 Name"></div>
+      <div class="col-md-3"><label class="form-label">Contact 1 Phone</label><input class="form-control" name="contact1_phone" placeholder="Contact 1 Phone"></div>
+      <div class="col-md-3"><label class="form-label">Contact 2 Name</label><input class="form-control" name="contact2_name" placeholder="Contact 2 Name"></div>
+      <div class="col-md-3"><label class="form-label">Contact 2 Phone</label><input class="form-control" name="contact2_phone" placeholder="Contact 2 Phone"></div>
+      <div class="col-md-6"><label class="form-label">Address</label><input class="form-control" name="address" placeholder="Address"></div>
+      <div class="col-md-6">
+        <label class="form-label">Subjects</label>
+        <select class="form-select" name="subjects" multiple>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}">{{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Student ID</th>
+          <th>ID Number</th>
+          <th>Telephone</th>
+          <th>Mobile</th>
+          <th>Contact1</th>
+          <th>Contact2</th>
+          <th>Address</th>
+          <th>Subject</th>
+          <th style="width:160px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s, subj in student_subject_rows %}
+          <tr>
+            <td><a href="{{ url_for('edit_student', student_id=s.id) }}">{{ s.name }}</a></td>
+            <td>{{ s.student_id or "" }}</td>
+            <td>{{ s.id_number or "" }}</td>
+            <td>{{ s.telephone or "" }}</td>
+            <td>{{ s.mobile or "" }}</td>
+            <td>{{ s.contact1_name or "" }} {{ s.contact1_phone or "" }}</td>
+            <td>{{ s.contact2_name or "" }} {{ s.contact2_phone or "" }}</td>
+            <td>{{ s.address or "" }}</td>
+            <td>{{ subj.name if subj else "" }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_student', student_id=s.id) }}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_student', student_id=s.id) }}"
+                 onclick="return confirm('Delete student and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
-    return render(page,
-              student_subject_rows=student_subject_rows,
-              subject_counts=subject_counts,
-              subjects=subjects)
 
+    return render(page,
+                  student_subject_rows=student_subject_rows,
+                  subject_counts=subject_counts,
+                  subjects=subjects)
 @app.route("/students/<int:student_id>/delete")
 def delete_student(student_id):
     s = Student.query.get_or_404(student_id)
