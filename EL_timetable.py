@@ -371,8 +371,9 @@ def teacher_totals():
     page = """
     <h5>Teacher Totals</h5>
     <div class="mb-3">
-    <a href="{{ url_for('export_teacher_totals', format='csv') }}">Download CSV</a>
-    <a href="{{ url_for('export_teacher_totals', format='excel') }}">Download Excel</a>    </div>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals', format='csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals', format='excel') }}">Download Excel</a>
+    </div>
     <table class="table table-sm table-bordered">
       <thead>
         <tr>
@@ -446,10 +447,9 @@ def weekly_timetable():
     page = """
     <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
     <div class="mb-3">
-    <a href="{{ url_for('export_weekly', format='csv') }}">Download CSV</a>
-    <a href="{{ url_for('export_weekly', format='excel') }}">Download Excel</a>
-    </div>
-    <!-- Combined table -->
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly', format='csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly', format='excel') }}">Download Excel</a>
+    </div>    <!-- Combined table -->
 
     <h6 class="mt-3">All Teachers Combined</h6>
     <table class="table table-sm table-bordered">
@@ -538,10 +538,9 @@ def logs():
     page = """
     <h5>System Logs</h5>
     <div class="mb-3">
-    <a href="{{ url_for('export_logs', format='csv') }}">Download CSV</a>
-    <a href="{{ url_for('export_logs', format='excel') }}">Download Excel</a>
-    </div>
-    <table class="table table-sm table-bordered">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs', format='csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs', format='excel') }}">Download Excel</a>
+    </div>    <table class="table table-sm table-bordered">
 
       <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
       <tbody>
