@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from flask import Flask, request, redirect, url_for, render_template_string, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
+from sqlalchemy import extract, func
 
 # -------------------------
 # Flask setup
@@ -523,7 +524,7 @@ def search_students():
     q = request.args.get("q", "").strip()
     results = []
     if q:
-        matches = Student.query.filter(Student.name.like(f"{q}%")).order_by(Student.name.asc()).all()
+        matches = Student.query.filter(func.lower(Student.name).like(f"%{q.lower()}%")).order_by(Student.name.asc()).all()
         results = [{"id": s.id, "name": s.name} for s in matches]
     return {"results": results}
 
