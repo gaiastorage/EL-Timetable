@@ -5,7 +5,6 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 from flask import Flask, request, redirect, url_for, render_template_string, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import extract
 from sqlalchemy import extract, func
 
 # -------------------------
@@ -20,15 +19,40 @@ db = SQLAlchemy(app)
 # -------------------------
 # Models
 # -------------------------
+
 class Teacher(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), unique=True, nullable=False)
-    nickname = db.Column(db.String(120), nullable=True)   # NEW field
+    nickname = db.Column(db.String(120), nullable=True)
+
+# Many-to-many link table between students and courses
+student_courses = db.Table("student_courses",
+    db.Column("student_id", db.Integer, db.ForeignKey("student.id")),
+    db.Column("course_id", db.Integer, db.ForeignKey("course.id"))
+)
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.String(50), unique=True, nullable=True)   # internal ID
     name = db.Column(db.String(120), unique=True, nullable=False)
-    rate_per_class = db.Column(db.Float, default=0.0)
+    id_number = db.Column(db.String(50), nullable=True)
+    telephone = db.Column(db.String(50), nullable=True)
+    mobile = db.Column(db.String(50), nullable=True)
+    contact1_name = db.Column(db.String(120), nullable=True)
+    contact1_phone = db.Column(db.String(50), nullable=True)
+    contact2_name = db.Column(db.String(120), nullable=True)
+    contact2_phone = db.Column(db.String(50), nullable=True)
+    address = db.Column(db.String(255), nullable=True)
+
+    # Courses enrolled
+    courses = db.relationship("Course", secondary=student_courses, backref="students")
+
+class Course(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    number_of_classes = db.Column(db.Integer, nullable=False)
+    discount = db.Column(db.Float, default=0.0)  # percentage discount
 
 class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -47,6 +71,27 @@ class ClassSession(db.Model):
     teacher = db.relationship("Teacher", backref=db.backref("sessions", lazy=True))
     student = db.relationship("Student", backref=db.backref("sessions", lazy=True))
     subject = db.relationship("Subject", backref=db.backref("sessions", lazy=True))
+
+class Payment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, default=date.today)
+    method = db.Column(db.String(50), nullable=True)  # cash, card, transfer
+
+    student = db.relationship("Student", backref=db.backref("payments", lazy=True))
+    course = db.relationship("Course", backref=db.backref("payments", lazy=True))
+
+class Attendance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("class_session.id"), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False)  # Arrived, Late, Absent, Vacation
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    session = db.relationship("ClassSession", backref=db.backref("attendance", lazy=True))
+    student = db.relationship("Student", backref=db.backref("attendance", lazy=True))
 
 class LogEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -79,6 +124,7 @@ BASE = """
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_teachers') }}">Teachers</a>
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_students') }}">Students</a>
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_subjects') }}">Subjects</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('manage_courses') }}">Courses</a>
       <a class="btn btn-outline-success btn-sm" href="{{ url_for('add_session') }}">Add Session</a>
       <a class="btn btn-outline-dark btn-sm" href="{{ url_for('payments') }}">Payments</a>
       <a class="btn btn-outline-dark btn-sm" href="{{ url_for('teacher_totals') }}">Teacher Totals</a>
@@ -106,12 +152,16 @@ def render(page, **kwargs):
     return render_template_string(BASE, content=render_template_string(page, **kwargs))
 
 def parse_date(s):
-    try: return datetime.strptime(s, "%Y-%m-%d").date()
-    except: return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except:
+        return None
 
 def parse_time(s):
-    try: return datetime.strptime(s, "%H:%M").time()
-    except: return None
+    try:
+        return datetime.strptime(s, "%H:%M").time()
+    except:
+        return None
 
 def current_month_sessions():
     today = date.today()
@@ -124,6 +174,45 @@ def log_action(action, details=""):
     entry = LogEntry(action=action, details=details)
     db.session.add(entry)
     db.session.commit()
+
+# -------------------------
+# Search routes (autocomplete)
+# -------------------------
+@app.route("/search_students")
+def search_students():
+    q = request.args.get("q", "").strip()
+    results = []
+    if q:
+        matches = Student.query.filter(func.lower(Student.name).like(f"%{q.lower()}%")).order_by(Student.name.asc()).all()
+        results = [{"id": s.id, "name": s.name} for s in matches]
+    return {"results": results}
+
+@app.route("/search_teachers")
+def search_teachers():
+    q = request.args.get("q", "").strip()
+    results = []
+    if q:
+        matches = Teacher.query.filter(func.lower(Teacher.name).like(f"%{q.lower()}%")).order_by(Teacher.name.asc()).all()
+        results = [{"id": t.id, "name": t.name} for t in matches]
+    return {"results": results}
+
+@app.route("/search_subjects")
+def search_subjects():
+    q = request.args.get("q", "").strip()
+    results = []
+    if q:
+        matches = Subject.query.filter(func.lower(Subject.name).like(f"%{q.lower()}%")).order_by(Subject.name.asc()).all()
+        results = [{"id": subj.id, "name": subj.name} for subj in matches]
+    return {"results": results}
+
+@app.route("/search_courses")
+def search_courses():
+    q = request.args.get("q", "").strip()
+    results = []
+    if q:
+        matches = Course.query.filter(func.lower(Course.name).like(f"%{q.lower()}%")).order_by(Course.name.asc()).all()
+        results = [{"id": c.id, "name": c.name} for c in matches]
+    return {"results": results}
 
 # -------------------------
 # Home / Timetable (daily grouped by teacher)
@@ -200,215 +289,7 @@ def home():
     return render(page, teachers=teachers, selected_teacher=selected_teacher, grouped=grouped, date=date)
 
 # -------------------------
-# Weekly grid timetable (grouped by teacher)
-# -------------------------
-@app.route("/weekly_timetable")
-def weekly_timetable():
-    hours = [f"{h:02d}:00" for h in range(8, 21)]  # 08:00 to 20:00
-    days = list(calendar.day_name)  # Monday ... Sunday
-    today = date.today()
-    start_week = today - timedelta(days=today.weekday())  # Monday
-    end_week = start_week + timedelta(days=7)
-
-    sessions = ClassSession.query.filter(
-        ClassSession.session_date >= start_week,
-        ClassSession.session_date < end_week
-    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
-
-    # Build teacher -> student -> slots mapping
-    teacher_groups = {}
-    for s in sessions:
-        t = s.teacher
-        nick = t.nickname or t.name
-        tg = teacher_groups.setdefault(t.id, {"teacher": t, "students": {}})
-        st_map = tg["students"].setdefault(s.student_id, {"student": s.student, "slots": {}})
-        day_name = calendar.day_name[s.session_date.weekday()]
-        hour_str = s.start_time.strftime("%H:00")
-        st_map["slots"][(day_name, hour_str)] = f"{s.student.name} - {s.subject.name} ({nick})"
-
-    # Build combined slots for all teachers
-    combined_slots = {}
-    for s in sessions:
-        day_name = calendar.day_name[s.session_date.weekday()]
-        hour_str = s.start_time.strftime("%H:00")
-        nick = s.teacher.nickname or s.teacher.name
-        entry = f"{s.student.name} - {s.subject.name} ({nick})"
-        combined_slots.setdefault((day_name, hour_str), []).append(entry)
-
-    # Sort entries by teacher nickname
-    for key in combined_slots:
-        combined_slots[key].sort(key=lambda e: e.split("(")[-1].strip(")"))
-
-
-
-    page = """
-    <div class="d-flex gap-2 mb-2">
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='csv') }}">Download Weekly CSV</a>
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly', format='excel') }}">Download Weekly Excel</a>
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly_all', format='csv') }}">Download All Teachers CSV</a>
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_weekly_all', format='excel') }}">Download All Teachers Excel</a>
-    </div>
-
-    <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
-
-    <!-- Combined table -->
-    <h6 class="mt-3">All Teachers Combined</h6>
-    <table class="table table-sm table-bordered">
-      <thead>
-        <tr>
-          <th class="sticky-th" style="width:90px">Hour</th>
-          {% for d in days %}
-            <th class="sticky-th">{{ d }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for hour in hours %}
-          <tr>
-            <td class="timecell">{{ hour }}</td>
-            {% for d in days %}
-              <td style="min-width:200px">
-                {% set entries = combined_slots.get((d, hour), []) %}
-                {% if entries %}
-                  {% for e in entries %}
-                    {{ e }}<br>
-                  {% endfor %}
-                {% else %}
-                  -
-                {% endif %}
-              </td>
-            {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    {% if not teacher_groups %}
-      <div class="alert alert-secondary">No sessions scheduled this week.</div>
-    {% endif %}
-
-    <!-- Individual teacher tables -->
-    {% for tg in teacher_groups.values() %}
-      <h6 class="mt-4">Teacher: {{ tg.teacher.name }}{% if tg.teacher.nickname %} ({{ tg.teacher.nickname }}){% endif %}</h6>
-      <table class="table table-sm table-bordered">
-        <thead>
-          <tr>
-            <th class="sticky-th" style="width:90px">Hour</th>
-            {% for d in days %}
-              <th class="sticky-th">{{ d }}</th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for hour in hours %}
-            <tr>
-              <td class="timecell">{{ hour }}</td>
-              {% for d in days %}
-                <td style="min-width:200px">
-                  {% set printed = False %}
-                  {% for st in tg.students.values() %}
-                    {% if (d, hour) in st.slots %}
-                      {{ st.slots[(d, hour)] }}<br>
-                      {% set printed = True %}
-                    {% endif %}
-                  {% endfor %}
-                  {% if not printed %}-{% endif %}
-                </td>
-              {% endfor %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endfor %}
-    """
-    return render(page,
-               teacher_groups=teacher_groups,
-               days=days,
-               hours=hours,
-               start_week=start_week,
-               end_week=end_week,
-               timedelta=timedelta,
-               combined_slots=combined_slots)
-
-# -------------------------
-# Weekly download routes
-# -------------------------
-@app.route("/download_weekly/<format>")
-def download_weekly(format):
-    today = date.today()
-    start_week = today - timedelta(days=today.weekday())
-    end_week = start_week + timedelta(days=7)
-    sessions = ClassSession.query.filter(
-        ClassSession.session_date >= start_week,
-        ClassSession.session_date < end_week
-    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
-
-    data = []
-    for s in sessions:
-        data.append({
-            "Date": s.session_date.isoformat(),
-            "Day": calendar.day_name[s.session_date.weekday()],
-            "Start": s.start_time.strftime("%H:%M"),
-            "End": s.end_time.strftime("%H:%M"),
-            "Teacher": s.teacher.name,
-            "Nickname": s.teacher.nickname or "",
-            "Student": s.student.name,
-            "Subject": s.subject.name,
-            "Notes": s.notes or ""
-        })
-    df = pd.DataFrame(data)
-    if format == "csv":
-        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
-                         download_name=f"weekly_{start_week.strftime('%Y_%m_%d')}.csv", as_attachment=True)
-    elif format == "excel":
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        output.seek(0)
-        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name=f"weekly_{start_week.strftime('%Y_%m_%d')}.xlsx", as_attachment=True)
-@app.route("/download_weekly_all/<format>")
-def download_weekly_all(format):
-    today = date.today()
-    start_week = today - timedelta(days=today.weekday())
-    end_week = start_week + timedelta(days=7)
-    sessions = ClassSession.query.filter(
-        ClassSession.session_date >= start_week,
-        ClassSession.session_date < end_week
-    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
-
-    data = []
-    for s in sessions:
-        data.append({
-            "Date": s.session_date.isoformat(),
-            "Day": calendar.day_name[s.session_date.weekday()],
-            "Start": s.start_time.strftime("%H:%M"),
-            "End": s.end_time.strftime("%H:%M"),
-            "Teacher": s.teacher.name,
-            "Nickname": s.teacher.nickname or "",
-            "Student": s.student.name,
-            "Subject": s.subject.name,
-            "Notes": s.notes or ""
-        })
-    df = pd.DataFrame(data)
-
-    if format == "csv":
-        return send_file(io.BytesIO(df.to_csv(index=False).encode()),
-                         mimetype="text/csv",
-                         download_name=f"weekly_all_{start_week.strftime('%Y_%m_%d')}.csv",
-                         as_attachment=True)
-    elif format == "excel":
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        output.seek(0)
-        return send_file(output,
-                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name=f"weekly_all_{start_week.strftime('%Y_%m_%d')}.xlsx",
-                         as_attachment=True)
-
-# -------------------------
-# Teachers management (with nickname)
+# Teacher management
 # -------------------------
 @app.route("/teachers", methods=["GET","POST"])
 def manage_teachers():
@@ -464,21 +345,48 @@ def delete_teacher(teacher_id):
     return redirect(url_for("manage_teachers"))
 
 # -------------------------
-# Students management
+# Student management (profile + courses)
 # -------------------------
 @app.route("/students", methods=["GET","POST"])
 def manage_students():
+    courses = Course.query.order_by(Course.name.asc()).all()
     if request.method == "POST":
         name = request.form.get("name","").strip()
-        rate = request.form.get("rate", type=float)
+        student_id = request.form.get("student_id","").strip()
+        id_number = request.form.get("id_number","").strip()
+        telephone = request.form.get("telephone","").strip()
+        mobile = request.form.get("mobile","").strip()
+        contact1_name = request.form.get("contact1_name","").strip()
+        contact1_phone = request.form.get("contact1_phone","").strip()
+        contact2_name = request.form.get("contact2_name","").strip()
+        contact2_phone = request.form.get("contact2_phone","").strip()
+        address = request.form.get("address","").strip()
+        selected_courses = request.form.getlist("courses")
+
         if not name:
             flash("Student name cannot be empty.")
         elif Student.query.filter_by(name=name).first():
             flash("Student already exists.")
         else:
-            db.session.add(Student(name=name, rate_per_class=rate or 0))
+            new_student = Student(
+                name=name,
+                student_id=student_id or None,
+                id_number=id_number or None,
+                telephone=telephone or None,
+                mobile=mobile or None,
+                contact1_name=contact1_name or None,
+                contact1_phone=contact1_phone or None,
+                contact2_name=contact2_name or None,
+                contact2_phone=contact2_phone or None,
+                address=address or None
+            )
+            for cid in selected_courses:
+                course = Course.query.get(int(cid))
+                if course:
+                    new_student.courses.append(course)
+            db.session.add(new_student)
             db.session.commit()
-            log_action("add_student", f"Added student {name} with rate {rate or 0}")
+            log_action("add_student", f"Added student {name} with courses {selected_courses}")
             flash("Student added.")
         return redirect(url_for("manage_students"))
 
@@ -487,16 +395,41 @@ def manage_students():
     <h5>Students</h5>
     <form method="post" class="row g-2 mb-3">
       <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
-      <div class="col-md-3"><input class="form-control" name="rate" type="number" step="0.01" placeholder="Rate per class"></div>
+      <div class="col-md-3"><input class="form-control" name="student_id" placeholder="Student ID"></div>
+      <div class="col-md-3"><input class="form-control" name="id_number" placeholder="ID Number"></div>
+      <div class="col-md-3"><input class="form-control" name="telephone" placeholder="Telephone"></div>
+      <div class="col-md-3"><input class="form-control" name="mobile" placeholder="Mobile"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_name" placeholder="Contact 1 Name"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_phone" placeholder="Contact 1 Phone"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_name" placeholder="Contact 2 Name"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_phone" placeholder="Contact 2 Phone"></div>
+            <div class="col-md-6"><input class="form-control" name="address" placeholder="Address"></div>
+      <div class="col-md-6">
+        <label class="form-label">Courses</label>
+        <select class="form-select" name="courses" multiple>
+          {% for c in courses %}
+            <option value="{{ c.id }}">{{ c.name }} ({{ "%.2f"|format(c.price) }} / {{ c.number_of_classes }} classes{% if c.discount %}, {{ c.discount }}% off{% endif %})</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
     </form>
+
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th>Rate/Class</th><th style="width:120px">Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Student ID</th><th>ID Number</th><th>Telephone</th><th>Mobile</th><th>Courses</th><th style="width:120px">Actions</th></tr></thead>
       <tbody>
         {% for s in students %}
           <tr>
             <td>{{ s.name }}</td>
-            <td>${{ "%.2f"|format(s.rate_per_class) }}</td>
+            <td>{{ s.student_id or "" }}</td>
+            <td>{{ s.id_number or "" }}</td>
+            <td>{{ s.telephone or "" }}</td>
+            <td>{{ s.mobile or "" }}</td>
+            <td>
+              {% for c in s.courses %}
+                {{ c.name }}<br>
+              {% endfor %}
+            </td>
             <td>
               <a class="btn btn-sm btn-outline-danger"
                  href="{{ url_for('delete_student', student_id=s.id) }}"
@@ -507,7 +440,7 @@ def manage_students():
       </tbody>
     </table>
     """
-    return render(page, students=students)
+    return render(page, students=students, courses=courses)
 
 @app.route("/students/<int:student_id>/delete")
 def delete_student(student_id):
@@ -519,17 +452,8 @@ def delete_student(student_id):
     flash("Student deleted.")
     return redirect(url_for("manage_students"))
 
-@app.route("/search_students")
-def search_students():
-    q = request.args.get("q", "").strip()
-    results = []
-    if q:
-        matches = Student.query.filter(func.lower(Student.name).like(f"%{q.lower()}%")).order_by(Student.name.asc()).all()
-        results = [{"id": s.id, "name": s.name} for s in matches]
-    return {"results": results}
-
 # -------------------------
-# Subjects management
+# Subject management
 # -------------------------
 @app.route("/subjects", methods=["GET","POST"])
 def manage_subjects():
@@ -582,6 +506,67 @@ def delete_subject(subject_id):
     return redirect(url_for("manage_subjects"))
 
 # -------------------------
+# Course management
+# -------------------------
+@app.route("/courses", methods=["GET","POST"])
+def manage_courses():
+    if request.method == "POST":
+        name = request.form.get("name","").strip()
+        price = request.form.get("price", type=float)
+        num_classes = request.form.get("number_of_classes", type=int)
+        discount = request.form.get("discount", type=float)
+        if not name or not price or not num_classes:
+            flash("Course name, price, and number of classes are required.")
+        elif Course.query.filter_by(name=name).first():
+            flash("Course already exists.")
+        else:
+            db.session.add(Course(name=name, price=price, number_of_classes=num_classes, discount=discount or 0))
+            db.session.commit()
+            log_action("add_course", f"Added course {name} price={price}, classes={num_classes}, discount={discount or 0}")
+            flash("Course added.")
+        return redirect(url_for("manage_courses"))
+
+    courses = Course.query.order_by(Course.name.asc()).all()
+    page = """
+    <h5>Courses</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-3"><input class="form-control" name="name" placeholder="Course name"></div>
+      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" placeholder="Price"></div>
+      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" placeholder="Classes"></div>
+      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" placeholder="Discount %"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th>Price</th><th>Classes</th><th>Discount</th><th style="width:120px">Actions</th></tr></thead>
+      <tbody>
+        {% for c in courses %}
+          <tr>
+            <td>{{ c.name }}</td>
+            <td>${{ "%.2f"|format(c.price) }}</td>
+            <td>{{ c.number_of_classes }}</td>
+            <td>{{ c.discount }}%</td>
+            <td>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_course', course_id=c.id) }}"
+                 onclick="return confirm('Delete course?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    """
+    return render(page, courses=courses)
+
+@app.route("/courses/<int:course_id>/delete")
+def delete_course(course_id):
+    c = Course.query.get_or_404(course_id)
+    db.session.delete(c)
+    db.session.commit()
+    log_action("delete_course", f"Deleted course id={course_id}")
+    flash("Course deleted.")
+    return redirect(url_for("manage_courses"))
+
+# -------------------------
 # Sessions (add/edit/delete)
 # -------------------------
 @app.route("/sessions/add", methods=["GET","POST"])
@@ -623,85 +608,85 @@ def add_session():
 
     page = """
     <h5>Add session</h5>
-<form method="post" class="row g-3">
-  <div class="col-md-4">
-    <label class="form-label">Teacher</label>
-    <select class="form-select" name="teacher_id" required>
-      <option value="">-- choose --</option>
-      {% for t in teachers %}
-        <option value="{{ t.id }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+    <form method="post" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Teacher</label>
+        <select class="form-select" name="teacher_id" required>
+          <option value="">-- choose --</option>
+          {% for t in teachers %}
+            <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Student</label>
-    <input class="form-control" id="studentSearch" name="student_name" placeholder="Type student name">
-    <input type="hidden" id="studentId" name="student_id">
-    <div id="studentSuggestions" class="list-group"></div>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Student</label>
+        <input class="form-control" id="studentSearch" name="student_name" placeholder="Type student name">
+        <input type="hidden" id="studentId" name="student_id">
+        <div id="studentSuggestions" class="list-group"></div>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Subject</label>
-    <select class="form-select" name="subject_id" required>
-      <option value="">-- choose --</option>
-      {% for subj in subjects %}
-        <option value="{{ subj.id }}">{{ subj.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Subject</label>
+        <select class="form-select" name="subject_id" required>
+          <option value="">-- choose --</option>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}">{{ subj.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Date</label>
-    <input class="form-control" type="date" name="session_date" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" name="session_date" required>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Start time</label>
-    <input class="form-control" type="time" name="start_time" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Start time</label>
+        <input class="form-control" type="time" name="start_time" required>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">End time</label>
-    <input class="form-control" type="time" name="end_time" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">End time</label>
+        <input class="form-control" type="time" name="end_time" required>
+      </div>
 
-  <div class="col-12">
-    <label class="form-label">Notes (optional)</label>
-    <input class="form-control" name="notes" placeholder="Room, materials, etc.">
-  </div>
+      <div class="col-12">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-control" name="notes" placeholder="Room, materials, etc.">
+      </div>
 
-  <div class="col-12">
-    <button class="btn btn-success">Save</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
-  </div>
-</form>
+      <div class="col-12">
+        <button class="btn btn-success">Save</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
+      </div>
+    </form>
 
-<script>
-  document.getElementById("studentSearch").addEventListener("input", async function() {
-    const q = this.value;
-    if (q.length > 0) {
-      const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      const suggestions = document.getElementById("studentSuggestions");
-      suggestions.innerHTML = "";
-      data.results.forEach(st => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "list-group-item list-group-item-action";
-        item.textContent = st.name;
-        item.onclick = () => {
-          document.getElementById("studentSearch").value = st.name;
-          document.getElementById("studentId").value = st.id;
+    <script>
+      document.getElementById("studentSearch").addEventListener("input", async function() {
+        const q = this.value;
+        if (q.length > 0) {
+          const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          const suggestions = document.getElementById("studentSuggestions");
           suggestions.innerHTML = "";
-        };
-        suggestions.appendChild(item);
+          data.results.forEach(st => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "list-group-item list-group-item-action";
+            item.textContent = st.name;
+            item.onclick = () => {
+              document.getElementById("studentSearch").value = st.name;
+              document.getElementById("studentId").value = st.id;
+              suggestions.innerHTML = "";
+            };
+            suggestions.appendChild(item);
+          });
+        } else {
+          document.getElementById("studentSuggestions").innerHTML = "";
+        }
       });
-    } else {
-      document.getElementById("studentSuggestions").innerHTML = "";
-    }
-  });
-</script>
+    </script>
     """
     return render(page, teachers=teachers, students=students, subjects=subjects)
 
@@ -709,7 +694,6 @@ def add_session():
 def edit_session(session_id):
     s = ClassSession.query.get_or_404(session_id)
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    students = Student.query.order_by(Student.name.asc()).all()
     subjects = Subject.query.order_by(Subject.name.asc()).all()
 
     if request.method == "POST":
@@ -736,247 +720,304 @@ def edit_session(session_id):
         s.end_time = end_time
         s.notes = notes or None
         db.session.commit()
-        log_action("edit_session", f"Session id={session_id} updated")
+        log_action("edit_session", f"Edited session id={session_id}")
         flash("Session updated.")
         return redirect(url_for("home", teacher_id=teacher_id))
 
     page = """
     <h5>Edit session</h5>
-<form method="post" class="row g-3">
-  <div class="col-md-4">
-    <label class="form-label">Teacher</label>
-    <select class="form-select" name="teacher_id" required>
-      {% for t in teachers %}
-        <option value="{{ t.id }}" {% if t.id == s.teacher_id %}selected{% endif %}>{{ t.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+    <form method="post" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Teacher</label>
+        <select class="form-select" name="teacher_id" required>
+          {% for t in teachers %}
+            <option value="{{ t.id }}" {% if t.id == s.teacher_id %}selected{% endif %}>{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Student</label>
-    <input class="form-control" id="studentSearch" name="student_name" 
-           value="{{ s.student.name }}" placeholder="Type student name">
-    <input type="hidden" id="studentId" name="student_id" value="{{ s.student_id }}">
-    <div id="studentSuggestions" class="list-group"></div>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Student</label>
+        <input class="form-control" id="studentSearch" name="student_name" value="{{ s.student.name }}" placeholder="Type student name">
+        <input type="hidden" id="studentId" name="student_id" value="{{ s.student_id }}">
+        <div id="studentSuggestions" class="list-group"></div>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Subject</label>
-    <select class="form-select" name="subject_id" required>
-      {% for subj in subjects %}
-        <option value="{{ subj.id }}" {% if subj.id == s.subject_id %}selected{% endif %}>{{ subj.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Subject</label>
+        <select class="form-select" name="subject_id" required>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}" {% if subj.id == s.subject_id %}selected{% endif %}>{{ subj.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Date</label>
-    <input class="form-control" type="date" name="session_date" value="{{ s.session_date }}" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" name="session_date" value="{{ s.session_date }}" required>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">Start time</label>
-    <input class="form-control" type="time" name="start_time" value="{{ s.start_time.strftime('%H:%M') }}" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">Start time</label>
+        <input class="form-control" type="time" name="start_time" value="{{ s.start_time.strftime('%H:%M') }}" required>
+      </div>
 
-  <div class="col-md-4">
-    <label class="form-label">End time</label>
-    <input class="form-control" type="time" name="end_time" value="{{ s.end_time.strftime('%H:%M') }}" required>
-  </div>
+      <div class="col-md-4">
+        <label class="form-label">End time</label>
+        <input class="form-control" type="time" name="end_time" value="{{ s.end_time.strftime('%H:%M') }}" required>
+      </div>
 
-  <div class="col-12">
-    <label class="form-label">Notes (optional)</label>
-    <input class="form-control" name="notes" value="{{ s.notes or '' }}" placeholder="Room, materials, etc.">
-  </div>
+      <div class="col-12">
+        <label class="form-label">Notes (optional)</label>
+        <input class="form-control" name="notes" value="{{ s.notes or '' }}" placeholder="Room, materials, etc.">
+      </div>
 
-  <div class="col-12">
-    <button class="btn btn-success">Save</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
-  </div>
-</form>
+      <div class="col-12">
+        <button class="btn btn-success">Save</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
+      </div>
+    </form>
 
-<script>
-  document.getElementById("studentSearch").addEventListener("input", async function() {
-    const q = this.value;
-    if (q.length > 0) {
-      const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      const suggestions = document.getElementById("studentSuggestions");
-      suggestions.innerHTML = "";
-      data.results.forEach(st => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "list-group-item list-group-item-action";
-        item.textContent = st.name;
-        item.onclick = () => {
-          document.getElementById("studentSearch").value = st.name;
-          document.getElementById("studentId").value = st.id;
+    <script>
+      document.getElementById("studentSearch").addEventListener("input", async function() {
+        const q = this.value;
+        if (q.length > 0) {
+          const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          const suggestions = document.getElementById("studentSuggestions");
           suggestions.innerHTML = "";
-        };
-        suggestions.appendChild(item);
+          data.results.forEach(st => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "list-group-item list-group-item-action";
+            item.textContent = st.name;
+            item.onclick = () => {
+              document.getElementById("studentSearch").value = st.name;
+              document.getElementById("studentId").value = st.id;
+              suggestions.innerHTML = "";
+            };
+            suggestions.appendChild(item);
+          });
+        } else {
+          document.getElementById("studentSuggestions").innerHTML = "";
+        }
       });
-    } else {
-      document.getElementById("studentSuggestions").innerHTML = "";
-    }
-  });
-</script>
+    </script>
     """
-    return render(page, s=s, teachers=teachers, students=students, subjects=subjects)
+    return render(page, s=s, teachers=teachers, subjects=subjects)
 
 @app.route("/sessions/<int:session_id>/delete")
 def delete_session(session_id):
     s = ClassSession.query.get_or_404(session_id)
-    teacher_id = s.teacher_id
     db.session.delete(s)
     db.session.commit()
     log_action("delete_session", f"Deleted session id={session_id}")
     flash("Session deleted.")
-    return redirect(url_for("home", teacher_id=teacher_id))
+    return redirect(url_for("home"))
 
 # -------------------------
-# Payments (current month) + downloads
+# Attendance tracking
 # -------------------------
-@app.route("/payments")
-def payments():
-    today = date.today()
-    students = Student.query.order_by(Student.name.asc()).all()
-    payments_data = []
-    for st in students:
-        sessions_count = current_month_sessions().filter_by(student_id=st.id).count()
-        total_payment = sessions_count * (st.rate_per_class or 0)
-        payments_data.append({"student": st, "sessions": sessions_count, "total": total_payment})
+@app.route("/attendance/<int:session_id>/<int:student_id>/<status>")
+def mark_attendance(session_id, student_id, status):
+    s = ClassSession.query.get_or_404(session_id)
+    st = Student.query.get_or_404(student_id)
+    valid_status = ["Arrived", "Late", "Absent", "Vacation"]
+    if status not in valid_status:
+        flash("Invalid attendance status.")
+        return redirect(url_for("home"))
+
+    record = Attendance(session_id=session_id, student_id=student_id, status=status)
+    db.session.add(record)
+    db.session.commit()
+    log_action("attendance", f"Marked {status} for student {st.name} in session {session_id}")
+    flash(f"Attendance marked: {st.name} - {status}")
+    return redirect(url_for("home", teacher_id=s.teacher_id))
+
+@app.route("/attendance")
+def attendance_overview():
+    records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
     page = """
-    <div class="d-flex gap-2 mb-2">
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_payments', format='csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-dark" href="{{ url_for('download_payments', format='excel') }}">Download Excel</a>
-    </div>
-    <h5>Student Payments ({{ today.strftime('%B %Y') }})</h5>
+    <h5>Attendance Records</h5>
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Student</th><th>Rate/Class</th><th>Classes</th><th>Total Payment</th></tr></thead>
+      <thead><tr><th>Timestamp</th><th>Student</th><th>Session</th><th>Status</th></tr></thead>
       <tbody>
-        {% for p in payments_data %}
+        {% for r in records %}
           <tr>
-            <td>{{ p.student.name }}</td>
-            <td>${{ "%.2f"|format(p.student.rate_per_class) }}</td>
-            <td>{{ p.sessions }}</td>
-            <td>${{ "%.2f"|format(p.total) }}</td>
+            <td>{{ r.timestamp.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td>{{ r.student.name }}</td>
+            <td>{{ r.session.session_date }} {{ r.session.start_time.strftime("%H:%M") }}</td>
+            <td>{{ r.status }}</td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
     """
-    return render(page, payments_data=payments_data, today=today)
+    return render(page, records=records)
 
-@app.route("/download_payments/<format>")
-def download_payments(format):
-    today = date.today()
+# -------------------------
+# Payments management
+# -------------------------
+@app.route("/payments", methods=["GET","POST"])
+def payments():
+    students = Student.query.order_by(Student.name.asc()).all()
+    courses = Course.query.order_by(Course.name.asc()).all()
+
+    if request.method == "POST":
+        student_id = request.form.get("student_id", type=int)
+        course_id = request.form.get("course_id", type=int)
+        amount = request.form.get("amount", type=float)
+        method = request.form.get("method","").strip()
+        if not all([student_id, course_id, amount]):
+            flash("Student, course, and amount are required.")
+        else:
+            payment = Payment(student_id=student_id, course_id=course_id, amount=amount, method=method or None)
+            db.session.add(payment)
+            db.session.commit()
+            log_action("add_payment", f"Payment student={student_id}, course={course_id}, amount={amount}")
+            flash("Payment recorded.")
+        return redirect(url_for("payments"))
+
+    # Build payment overview
+    overview = []
+    for s in students:
+        for c in s.courses:
+            paid = sum(p.amount for p in s.payments if p.course_id == c.id)
+            overview.append({
+                "student": s.name,
+                "course": c.name,
+                "price": c.price,
+                "classes": c.number_of_classes,
+                "discount": c.discount,
+                "paid": paid,
+                "outstanding": max(c.price - paid, 0)
+            })
+
+    page = """
+    <h5>Payments</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-3">
+        <select class="form-select" name="student_id" required>
+          <option value="">-- student --</option>
+          {% for s in students %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="course_id" required>
+          <option value="">-- course --</option>
+          {% for c in courses %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input class="form-control" name="amount" type="number" step="0.01" placeholder="Amount"></div>
+      <div class="col-md-2"><input class="form-control" name="method" placeholder="Method (cash, card, etc.)"></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Student</th><th>Course</th><th>Price</th><th>Classes</th><th>Discount</th><th>Paid</th><th>Outstanding</th></tr></thead>
+      <tbody>
+        {% for row in overview %}
+          <tr>
+            <td>{{ row.student }}</td>
+            <td>{{ row.course }}</td>
+            <td>${{ "%.2f"|format(row.price) }}</td>
+            <td>{{ row.classes }}</td>
+            <td>{{ row.discount }}%</td>
+            <td>${{ "%.2f"|format(row.paid) }}</td>
+            <td>${{ "%.2f"|format(row.outstanding) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    """
+    return render(page, students=students, courses=courses, overview=overview)
+
+# -------------------------
+# Export routes
+# -------------------------
+@app.route("/export/students/<format>")
+def export_students(format):
     students = Student.query.order_by(Student.name.asc()).all()
     data = []
-    for st in students:
-        sessions_count = current_month_sessions().filter_by(student_id=st.id).count()
-        total_payment = sessions_count * (st.rate_per_class or 0)
+    for s in students:
         data.append({
-            "Student": st.name,
-            "Rate/Class": st.rate_per_class,
-            "Classes": sessions_count,
-            "Total": total_payment
+            "Name": s.name,
+            "Student ID": s.student_id or "",
+            "ID Number": s.id_number or "",
+            "Telephone": s.telephone or "",
+            "Mobile": s.mobile or "",
+            "Contact1": s.contact1_name or "",
+            "Contact1 Phone": s.contact1_phone or "",
+            "Contact2": s.contact2_name or "",
+            "Contact2 Phone": s.contact2_phone or "",
+            "Address": s.address or "",
+            "Courses": ", ".join(c.name for c in s.courses)
         })
-        df = pd.DataFrame(data)
+    df = pd.DataFrame(data)
     if format == "csv":
         return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
-                         download_name=f"payments_{today.strftime('%Y_%m')}.csv", as_attachment=True)
+                         download_name="students.csv", as_attachment=True)
     elif format == "excel":
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             df.to_excel(writer, index=False)
         output.seek(0)
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name=f"payments_{today.strftime('%Y_%m')}.xlsx", as_attachment=True)
+                         download_name="students.xlsx", as_attachment=True)
 
-# -------------------------
-# Teacher totals (hourly sessions + student/subject counts)
-# -------------------------
-@app.route("/teacher_totals")
-def teacher_totals():
-    today = date.today()
-    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    totals_data = []
-
-    for t in teachers:
-        sessions = current_month_sessions().filter_by(teacher_id=t.id).all()
-
-        # count unique hourly slots (teacher/date/start_time)
-        unique_slots = set()
-        for s in sessions:
-            unique_slots.add((s.session_date, s.start_time))
-
-        hourly_sessions = len(unique_slots)
-
-        # count sessions per subject (still per student row)
-        subject_counts = {}
-        for s in sessions:
-            subj = s.subject.name
-            subject_counts[subj] = subject_counts.get(subj, 0) + 1
-
-        totals_data.append({
-            "teacher": t,
-            "hourly_sessions": hourly_sessions,
-            "subject_counts": subject_counts
+@app.route("/export/payments/<format>")
+def export_payments(format):
+    payments = Payment.query.order_by(Payment.date.desc()).all()
+    data = []
+    for p in payments:
+        data.append({
+            "Date": p.date.isoformat(),
+            "Student": p.student.name,
+            "Course": p.course.name,
+            "Amount": p.amount,
+            "Method": p.method or ""
         })
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="payments.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="payments.xlsx", as_attachment=True)
 
-    page = """
-    <h5>Teacher Totals (Current Month)</h5>
-    <table class="table table-sm table-bordered">
-      <thead><tr><th>Teacher</th><th>Nickname</th><th>Hourly Sessions</th><th>Subjects</th></tr></thead>
-      <tbody>
-        {% for td in totals_data %}
-          <tr>
-            <td>{{ td.teacher.name }}</td>
-            <td>{{ td.teacher.nickname or "" }}</td>
-            <td>{{ td.hourly_sessions }}</td>
-            <td>
-              {% for subj, count in td.subject_counts.items() %}
-                {{ subj }}: {{ count }}<br>
-              {% endfor %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    """
-    return render(page, totals_data=totals_data)
-# -------------------------
-# Logs
-# -------------------------
-@app.route("/logs")
-def logs():
-    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).limit(200).all()
-    page = """
-    <h5>Logs</h5>
-    <table class="table table-sm table-bordered">
-      <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
-      <tbody>
-        {% for e in entries %}
-          <tr><td>{{ e.timestamp }}</td><td>{{ e.action }}</td><td>{{ e.details }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    """
-    return render(page, entries=entries)
+@app.route("/export/attendance/<format>")
+def export_attendance(format):
+    records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
+    data = []
+    for r in records:
+        data.append({
+            "Timestamp": r.timestamp.strftime("%Y-%m-%d %H:%M"),
+            "Student": r.student.name,
+            "Session Date": r.session.session_date.isoformat(),
+            "Start": r.session.start_time.strftime("%H:%M"),
+            "Status": r.status
+        })
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="attendance.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="attendance.xlsx", as_attachment=True)
 
-# -------------------------
-# CLI: init-db
-# -------------------------
-@app.cli.command("init-db")
-def init_db_command():
-    db.create_all()
-    print("Initialized the database.")
-
-# -------------------------
-# Main
-# -------------------------
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
+    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
