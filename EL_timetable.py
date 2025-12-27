@@ -25,11 +25,6 @@ class Teacher(db.Model):
     name = db.Column(db.String(120), unique=True, nullable=False)
     nickname = db.Column(db.String(120), nullable=True)
 
-# Many-to-many link table between students and courses
-student_courses = db.Table("student_courses",
-    db.Column("student_id", db.Integer, db.ForeignKey("student.id")),
-    db.Column("course_id", db.Integer, db.ForeignKey("course.id"))
-)
 
 # Many-to-many link table between students and subjects
 student_subjects = db.Table("student_subjects",
@@ -54,16 +49,15 @@ class Student(db.Model):
     subjects = db.relationship("Subject", secondary=student_subjects, backref="students")
 
 
-class Course(db.Model):
+
+
+class Subject(db.Model):
+    class Subject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), unique=True, nullable=False)
     price = db.Column(db.Float, nullable=False)
     number_of_classes = db.Column(db.Integer, nullable=False)
     discount = db.Column(db.Float, default=0.0)  # percentage discount
-
-class Subject(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), unique=True, nullable=False)
 
 class ClassSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -82,13 +76,13 @@ class ClassSession(db.Model):
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("student.id"), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    subject_id = db.Column(db.Integer, db.ForeignKey("subject.id"), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.Date, default=date.today)
     method = db.Column(db.String(50), nullable=True)  # cash, card, transfer
 
     student = db.relationship("Student", backref=db.backref("payments", lazy=True))
-    course = db.relationship("Course", backref=db.backref("payments", lazy=True))
+    subject = db.relationship("Subject", backref=db.backref("payments", lazy=True))
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -211,14 +205,6 @@ def search_subjects():
         results = [{"id": subj.id, "name": subj.name} for subj in matches]
     return {"results": results}
 
-@app.route("/search_courses")
-def search_courses():
-    q = request.args.get("q", "").strip()
-    results = []
-    if q:
-        matches = Course.query.filter(func.lower(Course.name).like(f"%{q.lower()}%")).order_by(Course.name.asc()).all()
-        results = [{"id": c.id, "name": c.name} for c in matches]
-    return {"results": results}
 
 # -------------------------
 # Home / Timetable (daily grouped by teacher)
@@ -609,7 +595,7 @@ return redirect(url_for("manage_students"))
       <th>Contact1</th>
       <th>Contact2</th>
       <th>Address</th>
-      <th>Courses</th>
+      <th>Subjects</th>
       <th style="width:160px">Actions</th>
     </tr>
   </thead>
@@ -658,7 +644,7 @@ def delete_student(student_id):
 @app.route("/students/<int:student_id>/edit", methods=["GET","POST"])
 def edit_student(student_id):
     student = Student.query.get_or_404(student_id)
-    subjects = Subject.query.order_by(Course.name.asc()).all()
+    subjects = Subject.query.order_by(Subject.name.asc()).all()
 
     if request.method == "POST":
         student.name = request.form.get("name","").strip()
@@ -673,11 +659,11 @@ def edit_student(student_id):
         student.address = request.form.get("address","").strip() or None
 
         # reset courses
-        student.courses = []
-        for cid in request.form.getlist("courses"):
-            course = Course.query.get(int(cid))
-            if course:
-                student.courses.append(course)
+        student.subjects = []
+for sid in request.form.getlist("subjects"):
+    subj = Subject.query.get(int(sid))
+    if subj:
+        student.subjects.append(subj)
 
         db.session.commit()
         flash("Student updated.")
@@ -697,12 +683,12 @@ def edit_student(student_id):
       <div class="col-md-3"><input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}"></div>
       <div class="col-md-6"><input class="form-control" name="address" value="{{ student.address or '' }}"></div>
       <div class="col-md-6">
-        <label class="form-label">Courses</label>
-        <select class="form-select" name="courses" multiple>
-          {% for c in courses %}
-            <option value="{{ c.id }}" {% if c in student.courses %}selected{% endif %}>{{ c.name }}</option>
-          {% endfor %}
-        </select>
+        <label class="form-label">Subjects</label>
+<select class="form-select" name="subjects" multiple>
+    {% for subj in subjects %}
+        <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>{{ subj.name }}</option>
+    {% endfor %}
+</select>
       </div>
       <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
       <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a></div>
