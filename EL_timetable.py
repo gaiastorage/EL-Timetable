@@ -1433,6 +1433,121 @@ def export_logs(format):
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          download_name="logs.xlsx", as_attachment=True)
 
+# -------------------------
+# Download routes (monthly exports)
+# -------------------------
+
+@app.route("/download_timetable/<format>")
+def download_timetable(format):
+    today = date.today()
+    sessions = ClassSession.query.filter(
+        extract("year", ClassSession.session_date) == today.year,
+        extract("month", ClassSession.session_date) == today.month
+    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
+
+    data = [{
+        "Date": s.session_date.isoformat(),
+        "Start": s.start_time.strftime("%H:%M"),
+        "End": s.end_time.strftime("%H:%M"),
+        "Teacher": s.teacher.name,
+        "Student": s.student.name,
+        "Subject": s.subject.name,
+        "Notes": s.notes or ""
+    } for s in sessions]
+    df = pd.DataFrame(data)
+
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="timetable.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Timetable")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="timetable.xlsx", as_attachment=True)
+
+
+@app.route("/download_payments/<format>")
+def download_payments(format):
+    today = date.today()
+    students = Student.query.order_by(Student.name.asc()).all()
+    data = []
+    for st in students:
+        sessions_count = current_month_sessions().filter_by(student_id=st.id).count()
+        total_payment = sessions_count * (st.rate_per_class or 0)
+        data.append({
+            "Student": st.name,
+            "Rate/Class": st.rate_per_class,
+            "Classes": sessions_count,
+            "Total Payment": total_payment
+        })
+    df = pd.DataFrame(data)
+
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="payments.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Payments")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="payments.xlsx", as_attachment=True)
+
+
+@app.route("/download_totals/<format>")
+def download_totals(format):
+    today = date.today()
+    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
+    data = []
+    for t in teachers:
+        sessions = current_month_sessions().filter_by(teacher_id=t.id).all()
+        subject_counts = {}
+        for s in sessions:
+            subj = s.subject.name
+            subject_counts[subj] = subject_counts.get(subj, 0) + 1
+        data.append({
+            "Teacher": t.name,
+            "Nickname": t.nickname or "",
+            "Total Sessions": len(sessions),
+            "Subject Breakdown": "; ".join([f"{k}: {v}" for k,v in subject_counts.items()])
+        })
+    df = pd.DataFrame(data)
+
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="teacher_totals.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="TeacherTotals")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="teacher_totals.xlsx", as_attachment=True)
+
+
+@app.route("/download_logs/<format>")
+def download_logs(format):
+    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
+    data = [{
+        "Time": e.timestamp.strftime("%Y-%m-%d %H:%M"),
+        "Action": e.action,
+        "Details": e.details or ""
+    } for e in entries]
+    df = pd.DataFrame(data)
+
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="logs.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Logs")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="logs.xlsx", as_attachment=True)
+
 
 if __name__ == "__main__":
     import os
