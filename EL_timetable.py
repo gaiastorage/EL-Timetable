@@ -622,10 +622,71 @@ def manage_students():
     students = Student.query.order_by(Student.name.asc()).all()
     page = """
     <h5>Students ({{ students|length }})</h5>
-    ... (your Students list HTML here) ...
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
+      <div class="col-md-3"><input class="form-control" name="student_id" placeholder="Student ID"></div>
+      <div class="col-md-3"><input class="form-control" name="id_number" placeholder="ID Number"></div>
+      <div class="col-md-3"><input class="form-control" name="telephone" placeholder="Telephone"></div>
+      <div class="col-md-3"><input class="form-control" name="mobile" placeholder="Mobile"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_name" placeholder="Contact 1 Name"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_phone" placeholder="Contact 1 Phone"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_name" placeholder="Contact 2 Name"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_phone" placeholder="Contact 2 Phone"></div>
+      <div class="col-md-6"><input class="form-control" name="address" placeholder="Address"></div>
+      <div class="col-md-6">
+        <label class="form-label">Subjects</label>
+        <select class="form-select" name="subjects" multiple>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}">{{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+    </form>
+
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Student ID</th>
+          <th>ID Number</th>
+          <th>Telephone</th>
+          <th>Mobile</th>
+          <th>Contact1</th>
+          <th>Contact2</th>
+          <th>Address</th>
+          <th>Subjects</th>
+          <th style="width:160px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+          <tr>
+            <td><a href="{{ url_for('edit_student', student_id=s.id) }}">{{ s.name }}</a></td>
+            <td>{{ s.student_id or "" }}</td>
+            <td>{{ s.id_number or "" }}</td>
+            <td>{{ s.telephone or "" }}</td>
+            <td>{{ s.mobile or "" }}</td>
+            <td>{{ s.contact1_name or "" }} {{ s.contact1_phone or "" }}</td>
+            <td>{{ s.contact2_name or "" }} {{ s.contact2_phone or "" }}</td>
+            <td>{{ s.address or "" }}</td>
+            <td>
+              {% for subj in s.subjects %}
+                {{ subj.name }}<br>
+              {% endfor %}
+            </td>
+            <td>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_student', student_id=s.id) }}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger"
+                 href="{{ url_for('delete_student', student_id=s.id) }}"
+                 onclick="return confirm('Delete student and their sessions?')">Delete</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
     return render(page, students=students, subjects=subjects)
-
 @app.route("/students/<int:student_id>/delete")
 def delete_student(student_id):
     s = Student.query.get_or_404(student_id)
