@@ -520,7 +520,7 @@ def logs():
 def manage_students():
     subjects = Subject.query.order_by(Subject.name.asc()).all()
 
-        if request.method == "POST":
+    if request.method == "POST":
         name = request.form.get("name","").strip()
         student_id = request.form.get("student_id","").strip()
         id_number = request.form.get("id_number","").strip()
@@ -559,7 +559,7 @@ def manage_students():
             db.session.commit()
             log_action("add_student", f"Added student {name} with subjects {selected_subjects}")
             flash("Student added.")
-        return redirect(url_for("manage_students"))
+            return redirect(url_for("manage_students"))
 
     students = Student.query.order_by(Student.name.asc()).all()
     page = """
