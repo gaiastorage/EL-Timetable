@@ -516,52 +516,64 @@ def logs():
 # -------------------------
 # Student management (profile + courses)
 # -------------------------
-@app.route("/students", methods=["GET","POST"])
-def manage_students():
+@app.route("/students/<int:student_id>/edit", methods=["GET","POST"])
+def edit_student(student_id):
+    student = Student.query.get_or_404(student_id)
     subjects = Subject.query.order_by(Subject.name.asc()).all()
 
     if request.method == "POST":
-        name = request.form.get("name","").strip()
-        student_id = request.form.get("student_id","").strip()
-        id_number = request.form.get("id_number","").strip()
-        telephone = request.form.get("telephone","").strip()
-        mobile = request.form.get("mobile","").strip()
-        contact1_name = request.form.get("contact1_name","").strip()
-        contact1_phone = request.form.get("contact1_phone","").strip()
-        contact2_name = request.form.get("contact2_name","").strip()
-        contact2_phone = request.form.get("contact2_phone","").strip()
-        address = request.form.get("address","").strip()
-        selected_subjects = request.form.getlist("subjects")
+        student.name = request.form.get("name","").strip()
+        student.student_id = request.form.get("student_id","").strip() or None
+        student.id_number = request.form.get("id_number","").strip() or None
+        student.telephone = request.form.get("telephone","").strip() or None
+        student.mobile = request.form.get("mobile","").strip() or None
+        student.contact1_name = request.form.get("contact1_name","").strip() or None
+        student.contact1_phone = request.form.get("contact1_phone","").strip() or None
+        student.contact2_name = request.form.get("contact2_name","").strip() or None
+        student.contact2_phone = request.form.get("contact2_phone","").strip() or None
+        student.address = request.form.get("address","").strip() or None
 
-        if not name:
-            flash("Student name cannot be empty.")
-        elif Student.query.filter_by(name=name).first():
-            flash("Student already exists.")
-        else:
-            new_student = Student(
-                name=name,
-                student_id=student_id or None,
-                id_number=id_number or None,
-                telephone=telephone or None,
-                mobile=mobile or None,
-                contact1_name=contact1_name or None,
-                contact1_phone=contact1_phone or None,
-                contact2_name=contact2_name or None,
-                contact2_phone=contact2_phone or None,
-                address=address or None
-            )
-            for sid in selected_subjects:
-                subj = Subject.query.get(int(sid))
-                if subj:
-                    new_student.subjects.append(subj)
+        # reset subjects
+        student.subjects = []
+        for sid in request.form.getlist("subjects"):
+            subj = Subject.query.get(int(sid))
+            if subj:
+                student.subjects.append(subj)
 
-            db.session.add(new_student)
-            db.session.commit()
-            log_action("add_student", f"Added student {name} with subjects {selected_subjects}")
-            flash("Student added.")
-            return redirect(url_for("manage_students"))
+        db.session.commit()
+        flash("Student updated.")
+        return redirect(url_for("manage_students"))
 
+    page = """
+    <h5>Edit Student</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-4"><input class="form-control" name="name" value="{{ student.name }}"></div>
+      <div class="col-md-3"><input class="form-control" name="student_id" value="{{ student.student_id or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="id_number" value="{{ student.id_number or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="telephone" value="{{ student.telephone or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="mobile" value="{{ student.mobile or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_name" value="{{ student.contact1_name or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="contact1_phone" value="{{ student.contact1_phone or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_name" value="{{ student.contact2_name or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}"></div>
+      <div class="col-md-6"><input class="form-control" name="address" value="{{ student.address or '' }}"></div>
+      <div class="col-md-6">
+        <label class="form-label">Subjects</label>
+        <select class="form-select" name="subjects" multiple>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>
+              {{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
+      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a></div>
+    </form>
+    """
+    return render(page, student=student, subjects=subjects)
     students = Student.query.order_by(Student.name.asc()).all()
+
     page = """
     <h5>Students ({{ students|length }})</h5>
     <form method="post" class="row g-2 mb-3">
