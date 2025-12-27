@@ -1173,30 +1173,7 @@ def export_payments(format):
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          download_name="payments.xlsx", as_attachment=True)
 
-@app.route("/export/attendance/<format>")
-def export_attendance(format):
-    records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
-    data = []
-    for r in records:
-        data.append({
-            "Timestamp": r.timestamp.strftime("%Y-%m-%d %H:%M"),
-            "Student": r.student.name,
-            "Session Date": r.session.session_date.isoformat(),
-            "Start": r.session.start_time.strftime("%H:%M"),
-            "Subject": r.session.subject.name,
-            "Status": r.status
-        })
-    df = pd.DataFrame(data)
-    if format == "csv":
-        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
-                         download_name="attendance.csv", as_attachment=True)
-    elif format == "excel":
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        output.seek(0)
-        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name="attendance.xlsx", as_attachment=True)
+
 
 
 @app.route("/export/attendance/<format>")
