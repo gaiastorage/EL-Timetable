@@ -536,7 +536,7 @@ def weekly_timetable():
 def logs():
     entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
     page = """
-    <<h5>System Logs</h5>
+    <h5>System Logs</h5>
     <div class="mb-3">
     <a href="{{ url_for('export_logs', format='csv') }}">Download CSV</a>
     <a href="{{ url_for('export_logs', format='excel') }}">Download Excel</a>
