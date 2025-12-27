@@ -375,6 +375,128 @@ def teacher_totals():
     return render(page, totals=totals)
 
 # -------------------------
+# Weekly grid timetable (grouped by teacher)
+# -------------------------
+@app.route("/weekly_timetable")
+def weekly_timetable():
+    hours = [f"{h:02d}:00" for h in range(8, 21)]  # 08:00 to 20:00
+    days = list(calendar.day_name)  # Monday ... Sunday
+    today = date.today()
+    start_week = today - timedelta(days=today.weekday())  # Monday
+    end_week = start_week + timedelta(days=7)
+
+    sessions = ClassSession.query.filter(
+        ClassSession.session_date >= start_week,
+        ClassSession.session_date < end_week
+    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
+
+    # Build teacher -> student -> slots mapping
+    teacher_groups = {}
+    for s in sessions:
+        t = s.teacher
+        nick = t.nickname or t.name
+        tg = teacher_groups.setdefault(t.id, {"teacher": t, "students": {}})
+        st_map = tg["students"].setdefault(s.student_id, {"student": s.student, "slots": {}})
+        day_name = calendar.day_name[s.session_date.weekday()]
+        hour_str = s.start_time.strftime("%H:00")
+        st_map["slots"][(day_name, hour_str)] = f"{s.student.name} - {s.subject.name} ({nick})"
+
+    # Build combined slots for all teachers
+    combined_slots = {}
+    for s in sessions:
+        day_name = calendar.day_name[s.session_date.weekday()]
+        hour_str = s.start_time.strftime("%H:00")
+        nick = s.teacher.nickname or s.teacher.name
+        entry = f"{s.student.name} - {s.subject.name} ({nick})"
+        combined_slots.setdefault((day_name, hour_str), []).append(entry)
+
+    # Sort entries by teacher nickname
+    for key in combined_slots:
+        combined_slots[key].sort(key=lambda e: e.split("(")[-1].strip(")"))
+
+    page = """
+    <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
+
+    <!-- Combined table -->
+    <h6 class="mt-3">All Teachers Combined</h6>
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th class="sticky-th" style="width:90px">Hour</th>
+          {% for d in days %}
+            <th class="sticky-th">{{ d }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for hour in hours %}
+          <tr>
+            <td class="timecell">{{ hour }}</td>
+            {% for d in days %}
+              <td style="min-width:200px">
+                {% set entries = combined_slots.get((d, hour), []) %}
+                {% if entries %}
+                  {% for e in entries %}
+                    {{ e }}<br>
+                  {% endfor %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if not teacher_groups %}
+      <div class="alert alert-secondary">No sessions scheduled this week.</div>
+    {% endif %}
+
+    <!-- Individual teacher tables -->
+    {% for tg in teacher_groups.values() %}
+      <h6 class="mt-4">Teacher: {{ tg.teacher.name }}{% if tg.teacher.nickname %} ({{ tg.teacher.nickname }}){% endif %}</h6>
+      <table class="table table-sm table-bordered">
+        <thead>
+          <tr>
+            <th class="sticky-th" style="width:90px">Hour</th>
+            {% for d in days %}
+              <th class="sticky-th">{{ d }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for hour in hours %}
+            <tr>
+              <td class="timecell">{{ hour }}</td>
+              {% for d in days %}
+                <td style="min-width:200px">
+                  {% set printed = False %}
+                  {% for st in tg.students.values() %}
+                    {% if (d, hour) in st.slots %}
+                      {{ st.slots[(d, hour)] }}<br>
+                      {% set printed = True %}
+                    {% endif %}
+                  {% endfor %}
+                  {% if not printed %}-{% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+    """
+    return render(page,
+                  teacher_groups=teacher_groups,
+                  days=days,
+                  hours=hours,
+                  start_week=start_week,
+                  end_week=end_week,
+                  timedelta=timedelta,
+                  combined_slots=combined_slots)
+
+# -------------------------
 # Student management (profile + courses)
 # -------------------------
 @app.route("/students", methods=["GET","POST"])
