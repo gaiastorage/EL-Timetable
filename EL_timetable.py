@@ -345,6 +345,36 @@ def delete_teacher(teacher_id):
     return redirect(url_for("manage_teachers"))
 
 # -------------------------
+# Teacher totals
+# -------------------------
+@app.route("/teacher_totals")
+def teacher_totals():
+    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
+    totals = []
+    for t in teachers:
+        totals.append({
+            "name": t.name,
+            "nickname": t.nickname or "",
+            "sessions": len(t.sessions)
+        })
+    page = """
+    <h5>Teacher Totals</h5>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Name</th><th>Nickname</th><th>Sessions</th></tr></thead>
+      <tbody>
+        {% for row in totals %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.nickname }}</td>
+            <td>{{ row.sessions }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    """
+    return render(page, totals=totals)
+
+# -------------------------
 # Student management (profile + courses)
 # -------------------------
 @app.route("/students", methods=["GET","POST"])
