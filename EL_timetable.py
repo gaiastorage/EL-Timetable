@@ -819,11 +819,18 @@ def teacher_totals():
     today = date.today()
     teachers = Teacher.query.order_by(Teacher.name.asc()).all()
     totals_data = []
+
     for t in teachers:
         sessions = current_month_sessions().filter_by(teacher_id=t.id).all()
-        hourly_sessions = len(sessions)
 
-        # count sessions per subject
+        # count unique hourly slots (teacher/date/start_time)
+        unique_slots = set()
+        for s in sessions:
+            unique_slots.add((s.session_date, s.start_time))
+
+        hourly_sessions = len(unique_slots)
+
+        # count sessions per subject (still per student row)
         subject_counts = {}
         for s in sessions:
             subj = s.subject.name
@@ -836,16 +843,17 @@ def teacher_totals():
         })
 
     page = """
-    <h5>Teacher Totals ({{ today.strftime('%B %Y') }})</h5>
+    <h5>Teacher Totals (Current Month)</h5>
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Teacher</th><th>Hourly Sessions</th><th>Subjects</th></tr></thead>
+      <thead><tr><th>Teacher</th><th>Nickname</th><th>Hourly Sessions</th><th>Subjects</th></tr></thead>
       <tbody>
-        {% for row in totals_data %}
+        {% for td in totals_data %}
           <tr>
-            <td>{{ row.teacher.name }}{% if row.teacher.nickname %} ({{ row.teacher.nickname }}){% endif %}</td>
-            <td>{{ row.hourly_sessions }}</td>
+            <td>{{ td.teacher.name }}</td>
+            <td>{{ td.teacher.nickname or "" }}</td>
+            <td>{{ td.hourly_sessions }}</td>
             <td>
-              {% for subj, count in row.subject_counts.items() %}
+              {% for subj, count in td.subject_counts.items() %}
                 {{ subj }}: {{ count }}<br>
               {% endfor %}
             </td>
@@ -854,36 +862,7 @@ def teacher_totals():
       </tbody>
     </table>
     """
-    return render(page, totals_data=totals_data, today=today)
-@app.route("/download_totals/<format>")
-def download_totals(format):
-    today = date.today()
-    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
-    data = []
-    for t in teachers:
-        sessions = current_month_sessions().filter_by(teacher_id=t.id).all()
-        for s in sessions:
-            data.append({
-                "Teacher": t.name,
-                "Nickname": t.nickname or "",
-                "Date": s.session_date.isoformat(),
-                "Start": s.start_time.strftime("%H:%M"),
-                "End": s.end_time.strftime("%H:%M"),
-                "Student": s.student.name,
-                "Subject": s.subject.name
-            })
-    df = pd.DataFrame(data)
-    if format == "csv":
-        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
-                         download_name=f"totals_{today.strftime('%Y_%m')}.csv", as_attachment=True)
-    elif format == "excel":
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        output.seek(0)
-        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name=f"totals_{today.strftime('%Y_%m')}.xlsx", as_attachment=True)
-
+    return render(page, totals_data=totals_data)
 # -------------------------
 # Logs
 # -------------------------
