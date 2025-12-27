@@ -518,6 +518,15 @@ def delete_student(student_id):
     flash("Student deleted.")
     return redirect(url_for("manage_students"))
 
+@app.route("/search_students")
+def search_students():
+    q = request.args.get("q", "").strip()
+    results = []
+    if q:
+        matches = Student.query.filter(Student.name.like(f"{q}%")).order_by(Student.name.asc()).all()
+        results = [{"id": s.id, "name": s.name} for s in matches]
+    return {"results": results}
+
 # -------------------------
 # Subjects management
 # -------------------------
@@ -613,51 +622,85 @@ def add_session():
 
     page = """
     <h5>Add session</h5>
-    <form method="post" class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Teacher</label>
-        <select class="form-select" name="teacher_id" required>
-           <option value="">-- choose --</option>
-    {% for t in teachers %}
-      <option value="{{ t.id }}">{{ t.name }}</option>
-    {% endfor %}
-  </select>
-</div>
-<div class="col-md-4">
-        <label class="form-label">Student</label>
-        <select class="form-select" name="student_id" required>
-          <option value="">-- choose --</option>
-          {% for s in students %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Subject</label>
-        <select class="form-select" name="subject_id" required>
-          <option value="">-- choose --</option>
-          {% for subj in subjects %}<option value="{{ subj.id }}">{{ subj.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Date</label>
-        <input class="form-control" type="date" name="session_date" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Start time</label>
-        <input class="form-control" type="time" name="start_time" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">End time</label>
-        <input class="form-control" type="time" name="end_time" required>
-      </div>
-      <div class="col-12">
-        <label class="form-label">Notes (optional)</label>
-        <input class="form-control" name="notes" placeholder="Room, materials, etc.">
-      </div>
-      <div class="col-12">
-        <button class="btn btn-success">Save</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
-      </div>
-    </form>
+<form method="post" class="row g-3">
+  <div class="col-md-4">
+    <label class="form-label">Teacher</label>
+    <select class="form-select" name="teacher_id" required>
+      <option value="">-- choose --</option>
+      {% for t in teachers %}
+        <option value="{{ t.id }}">{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Student</label>
+    <input class="form-control" id="studentSearch" name="student_name" placeholder="Type student name">
+    <input type="hidden" id="studentId" name="student_id">
+    <div id="studentSuggestions" class="list-group"></div>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Subject</label>
+    <select class="form-select" name="subject_id" required>
+      <option value="">-- choose --</option>
+      {% for subj in subjects %}
+        <option value="{{ subj.id }}">{{ subj.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Date</label>
+    <input class="form-control" type="date" name="session_date" required>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Start time</label>
+    <input class="form-control" type="time" name="start_time" required>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">End time</label>
+    <input class="form-control" type="time" name="end_time" required>
+  </div>
+
+  <div class="col-12">
+    <label class="form-label">Notes (optional)</label>
+    <input class="form-control" name="notes" placeholder="Room, materials, etc.">
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-success">Save</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+  document.getElementById("studentSearch").addEventListener("input", async function() {
+    const q = this.value;
+    if (q.length > 0) {
+      const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      const suggestions = document.getElementById("studentSuggestions");
+      suggestions.innerHTML = "";
+      data.results.forEach(st => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "list-group-item list-group-item-action";
+        item.textContent = st.name;
+        item.onclick = () => {
+          document.getElementById("studentSearch").value = st.name;
+          document.getElementById("studentId").value = st.id;
+          suggestions.innerHTML = "";
+        };
+        suggestions.appendChild(item);
+      });
+    } else {
+      document.getElementById("studentSuggestions").innerHTML = "";
+    }
+  });
+</script>
     """
     return render(page, teachers=teachers, students=students, subjects=subjects)
 
@@ -698,46 +741,84 @@ def edit_session(session_id):
 
     page = """
     <h5>Edit session</h5>
-    <form method="post" class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Teacher</label>
-        <select class="form-select" name="teacher_id" required>
-          {% for t in teachers %}<option value="{{ t.id }}" {% if t.id == s.teacher_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Student</label>
-        <select class="form-select" name="student_id" required>
-          {% for st in students %}<option value="{{ st.id }}" {% if st.id == s.student_id %}selected{% endif %}>{{ st.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Subject</label>
-        <select class="form-select" name="subject_id" required>
-          {% for subj in subjects %}<option value="{{ subj.id }}" {% if subj.id == s.subject_id %}selected{% endif %}>{{ subj.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Date</label>
-        <input class="form-control" type="date" name="session_date" value="{{ s.session_date.isoformat() }}" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Start time</label>
-        <input class="form-control" type="time" name="start_time" value="{{ s.start_time.strftime('%H:%M') }}" required>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">End time</label>
-        <input class="form-control" type="time" name="end_time" value="{{ s.end_time.strftime('%H:%M') }}" required>
-      </div>
-      <div class="col-12">
-        <label class="form-label">Notes (optional)</label>
-        <input class="form-control" name="notes" value="{{ s.notes or '' }}">
-      </div>
-      <div class="col-12">
-        <button class="btn btn-success">Update</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('home', teacher_id=s.teacher_id) }}">Cancel</a>
-      </div>
-    </form>
+<form method="post" class="row g-3">
+  <div class="col-md-4">
+    <label class="form-label">Teacher</label>
+    <select class="form-select" name="teacher_id" required>
+      {% for t in teachers %}
+        <option value="{{ t.id }}" {% if t.id == s.teacher_id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Student</label>
+    <input class="form-control" id="studentSearch" name="student_name" 
+           value="{{ s.student.name }}" placeholder="Type student name">
+    <input type="hidden" id="studentId" name="student_id" value="{{ s.student_id }}">
+    <div id="studentSuggestions" class="list-group"></div>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Subject</label>
+    <select class="form-select" name="subject_id" required>
+      {% for subj in subjects %}
+        <option value="{{ subj.id }}" {% if subj.id == s.subject_id %}selected{% endif %}>{{ subj.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Date</label>
+    <input class="form-control" type="date" name="session_date" value="{{ s.session_date }}" required>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">Start time</label>
+    <input class="form-control" type="time" name="start_time" value="{{ s.start_time.strftime('%H:%M') }}" required>
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label">End time</label>
+    <input class="form-control" type="time" name="end_time" value="{{ s.end_time.strftime('%H:%M') }}" required>
+  </div>
+
+  <div class="col-12">
+    <label class="form-label">Notes (optional)</label>
+    <input class="form-control" name="notes" value="{{ s.notes or '' }}" placeholder="Room, materials, etc.">
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-success">Save</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Cancel</a>
+  </div>
+</form>
+
+<script>
+  document.getElementById("studentSearch").addEventListener("input", async function() {
+    const q = this.value;
+    if (q.length > 0) {
+      const res = await fetch(`/search_students?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      const suggestions = document.getElementById("studentSuggestions");
+      suggestions.innerHTML = "";
+      data.results.forEach(st => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "list-group-item list-group-item-action";
+        item.textContent = st.name;
+        item.onclick = () => {
+          document.getElementById("studentSearch").value = st.name;
+          document.getElementById("studentId").value = st.id;
+          suggestions.innerHTML = "";
+        };
+        suggestions.appendChild(item);
+      });
+    } else {
+      document.getElementById("studentSuggestions").innerHTML = "";
+    }
+  });
+</script>
     """
     return render(page, s=s, teachers=teachers, students=students, subjects=subjects)
 
