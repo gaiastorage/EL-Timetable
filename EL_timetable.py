@@ -223,8 +223,12 @@ def home():
         d = s.session_date.isoformat()
         grouped.setdefault(d, []).append(s)
     page = """
-    <h5>Timetable</h5>
-    <form method="get" class="mb-3">
+<h5>Timetable</h5>
+<div class="mb-3">
+  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable_csv') }}">Download CSV</a>
+  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable_excel') }}">Download Excel</a>
+</div>
+<form method="get" class="mb-3">
       <div class="row g-2">
         <div class="col-md-6">
           <select class="form-select" name="teacher_id">
@@ -366,6 +370,10 @@ def teacher_totals():
 
     page = """
     <h5>Teacher Totals</h5>
+    <div class="mb-3">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals_csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals_excel') }}">Download Excel</a>
+    </div>
     <table class="table table-sm table-bordered">
       <thead>
         <tr>
@@ -438,8 +446,12 @@ def weekly_timetable():
 
     page = """
     <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
-
+    <div class="mb-3">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly_csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly_excel') }}">Download Excel</a>
+    </div>
     <!-- Combined table -->
+
     <h6 class="mt-3">All Teachers Combined</h6>
     <table class="table table-sm table-bordered">
       <thead>
@@ -525,8 +537,13 @@ def weekly_timetable():
 def logs():
     entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
     page = """
-    <h5>System Logs</h5>
+    <<h5>System Logs</h5>
+    <div class="mb-3">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs_csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs_excel') }}">Download Excel</a>
+    </div>
     <table class="table table-sm table-bordered">
+
       <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
       <tbody>
         {% for e in entries %}
@@ -1187,6 +1204,10 @@ def payments():
 
     page = """
     <h5>Payments</h5>
+    <div class="mb-3">
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments_csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments_excel') }}">Download Excel</a>
+    </div>
     <form method="post" class="row g-2 mb-3">
       <div class="col-md-3">
         <select class="form-select" name="student_id" required>
