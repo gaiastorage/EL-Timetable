@@ -559,7 +559,7 @@ def manage_students():
             db.session.commit()
             log_action("add_student", f"Added student {name} with subjects {selected_subjects}")
             flash("Student added.")
-        return redirect(url_for("manage_students"))
+            return redirect(url_for("manage_students"))
 
     students = Student.query.order_by(Student.name.asc()).all()
     page = """
