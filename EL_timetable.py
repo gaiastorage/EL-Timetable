@@ -572,7 +572,7 @@ def edit_student(student_id):
     </form>
     """
     return render(page, student=student, subjects=subjects)
-    students = Student.query.order_by(Student.name.asc()).all()
+
 
     page = """
     <h5>Students ({{ students|length }})</h5>
