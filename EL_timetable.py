@@ -591,32 +591,73 @@ def edit_student(student_id):
         return redirect(url_for("manage_students"))
 
     page = """
-    <h5>Edit Student</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-4"><input class="form-control" name="name" value="{{ student.name }}"></div>
-      <div class="col-md-3"><input class="form-control" name="student_id" value="{{ student.student_id or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="id_number" value="{{ student.id_number or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="telephone" value="{{ student.telephone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="mobile" value="{{ student.mobile or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_name" value="{{ student.contact1_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_phone" value="{{ student.contact1_phone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_name" value="{{ student.contact2_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}"></div>
-      <div class="col-md-6"><input class="form-control" name="address" value="{{ student.address or '' }}"></div>
-      <div class="col-md-6">
-        <label class="form-label">Subjects</label>
-        <select class="form-select" name="subjects" multiple>
-          {% for subj in subjects %}
-            <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>
-              {{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})
-            </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
-      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a></div>
-    </form>
-    """
+<h5>Edit Student</h5>
+<form method="post" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <label class="form-label">Name</label>
+    <input class="form-control" name="name" value="{{ student.name }}" placeholder="Name" required>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Student ID</label>
+    <input class="form-control" name="student_id" value="{{ student.student_id or '' }}" placeholder="Student ID">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">ID Number</label>
+    <input class="form-control" name="id_number" value="{{ student.id_number or '' }}" placeholder="ID Number">
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Telephone</label>
+    <input class="form-control" name="telephone" value="{{ student.telephone or '' }}" placeholder="Telephone">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Mobile</label>
+    <input class="form-control" name="mobile" value="{{ student.mobile or '' }}" placeholder="Mobile">
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Contact 1 name</label>
+    <input class="form-control" name="contact1_name" value="{{ student.contact1_name or '' }}" placeholder="Contact 1 name">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Contact 1 phone</label>
+    <input class="form-control" name="contact1_phone" value="{{ student.contact1_phone or '' }}" placeholder="Contact 1 phone">
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Contact 2 name</label>
+    <input class="form-control" name="contact2_name" value="{{ student.contact2_name or '' }}" placeholder="Contact 2 name">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Contact 2 phone</label>
+    <input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}" placeholder="Contact 2 phone">
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">Address</label>
+    <input class="form-control" name="address" value="{{ student.address or '' }}" placeholder="Address">
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">Subjects</label>
+    <select class="form-select" name="subjects" multiple>
+      {% for subj in subjects %}
+        <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>
+          {{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})
+        </option>
+      {% endfor %}
+    </select>
+    <div class="form-text">Hold Ctrl/Cmd to select multiple subjects.</div>
+  </div>
+
+  <div class="col-md-2">
+    <button class="btn btn-success w-100">Save</button>
+  </div>
+  <div class="col-md-2">
+    <a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a>
+  </div>
+</form>
+"""
     return render(page, student=student, subjects=subjects)
 
 @app.route("/students", methods=["GET","POST"])
