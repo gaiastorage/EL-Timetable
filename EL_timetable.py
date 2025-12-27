@@ -520,7 +520,7 @@ def logs():
 def manage_students():
     subjects = Subject.query.order_by(Subject.name.asc()).all()
 
-    if request.method == "POST":
+        if request.method == "POST":
         name = request.form.get("name","").strip()
         student_id = request.form.get("student_id","").strip()
         id_number = request.form.get("id_number","").strip()
