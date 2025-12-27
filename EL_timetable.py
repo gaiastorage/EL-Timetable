@@ -1204,8 +1204,8 @@ def payments():
     page = """
     <h5>Payments</h5>
     <div class="mb-3">
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments_csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments_excel') }}">Download Excel</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments', format='csv') }}">Download CSV</a>
+      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_payments', format='excel') }}">Download Excel</a>
     </div>
     <form method="post" class="row g-2 mb-3">
       <div class="col-md-3">
