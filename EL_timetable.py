@@ -497,6 +497,32 @@ def weekly_timetable():
                   combined_slots=combined_slots)
 
 # -------------------------
+# Logs page
+# -------------------------
+@app.route("/logs")
+def logs():
+    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
+    page = """
+    <h5>System Logs</h5>
+    <table class="table table-sm table-bordered">
+      <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+          <tr>
+            <td>{{ e.timestamp.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td>{{ e.action }}</td>
+            <td>{{ e.details or "" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if not entries %}
+      <div class="alert alert-secondary">No log entries yet.</div>
+    {% endif %}
+    """
+    return render(page, entries=entries)
+
+# -------------------------
 # Student management (profile + courses)
 # -------------------------
 @app.route("/students", methods=["GET","POST"])
