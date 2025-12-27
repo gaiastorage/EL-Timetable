@@ -1333,6 +1333,109 @@ def export_attendance(format):
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          download_name="attendance.xlsx", as_attachment=True)
 
+@app.route("/export/timetable/<format>")
+def export_timetable(format):
+    sessions = ClassSession.query.order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
+    data = [{
+        "Date": s.session_date.isoformat(),
+        "Start": s.start_time.strftime("%H:%M"),
+        "End": s.end_time.strftime("%H:%M"),
+        "Teacher": s.teacher.name,
+        "Student": s.student.name,
+        "Subject": s.subject.name,
+        "Notes": s.notes or ""
+    } for s in sessions]
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="timetable.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Timetable")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="timetable.xlsx", as_attachment=True)
+
+@app.route("/export/teacher_totals/<format>")
+def export_teacher_totals(format):
+    teachers = Teacher.query.order_by(Teacher.name.asc()).all()
+    data = []
+    for t in teachers:
+        subject_counts = {}
+        for s in t.sessions:
+            subj_name = s.subject.name
+            subject_counts[subj_name] = subject_counts.get(subj_name, 0) + 1
+        total_students = sum(subject_counts.values())
+        data.append({
+            "Teacher": t.name,
+            "Nickname": t.nickname or "",
+            "Sessions": len(t.sessions),
+            "Total Students": total_students,
+            "Subject Breakdown": "; ".join([f"{k}: {v}" for k,v in subject_counts.items()])
+        })
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="teacher_totals.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="TeacherTotals")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="teacher_totals.xlsx", as_attachment=True)
+
+@app.route("/export/weekly/<format>")
+def export_weekly(format):
+    today = date.today()
+    start_week = today - timedelta(days=today.weekday())
+    end_week = start_week + timedelta(days=7)
+    sessions = ClassSession.query.filter(
+        ClassSession.session_date >= start_week,
+        ClassSession.session_date < end_week
+    ).order_by(ClassSession.session_date.asc(), ClassSession.start_time.asc()).all()
+    data = [{
+        "Date": s.session_date.isoformat(),
+        "Day": calendar.day_name[s.session_date.weekday()],
+        "Hour": s.start_time.strftime("%H:%M"),
+        "Teacher": s.teacher.name,
+        "Student": s.student.name,
+        "Subject": s.subject.name
+    } for s in sessions]
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="weekly_grid.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="WeeklyGrid")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="weekly_grid.xlsx", as_attachment=True)
+
+@app.route("/export/logs/<format>")
+def export_logs(format):
+    entries = LogEntry.query.order_by(LogEntry.timestamp.desc()).all()
+    data = [{
+        "Time": e.timestamp.strftime("%Y-%m-%d %H:%M"),
+        "Action": e.action,
+        "Details": e.details or ""
+    } for e in entries]
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="logs.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Logs")
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="logs.xlsx", as_attachment=True)
+
+
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
