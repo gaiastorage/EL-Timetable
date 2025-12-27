@@ -514,7 +514,7 @@ def logs():
     return render(page, entries=entries)
 
 # -------------------------
-# Student management (profile + courses)
+# Student management (profile + subjects)
 # -------------------------
 @app.route("/students/<int:student_id>/edit", methods=["GET","POST"])
 def edit_student(student_id):
@@ -573,72 +573,56 @@ def edit_student(student_id):
     """
     return render(page, student=student, subjects=subjects)
 
+@app.route("/students", methods=["GET","POST"])
+def manage_students():
+    subjects = Subject.query.order_by(Subject.name.asc()).all()
 
+    if request.method == "POST":
+        name = request.form.get("name","").strip()
+        student_id = request.form.get("student_id","").strip()
+        id_number = request.form.get("id_number","").strip()
+        telephone = request.form.get("telephone","").strip()
+        mobile = request.form.get("mobile","").strip()
+        contact1_name = request.form.get("contact1_name","").strip()
+        contact1_phone = request.form.get("contact1_phone","").strip()
+        contact2_name = request.form.get("contact2_name","").strip()
+        contact2_phone = request.form.get("contact2_phone","").strip()
+        address = request.form.get("address","").strip()
+        selected_subjects = request.form.getlist("subjects")
+
+        if not name:
+            flash("Student name cannot be empty.")
+        elif Student.query.filter_by(name=name).first():
+            flash("Student already exists.")
+        else:
+            new_student = Student(
+                name=name,
+                student_id=student_id or None,
+                id_number=id_number or None,
+                telephone=telephone or None,
+                mobile=mobile or None,
+                contact1_name=contact1_name or None,
+                contact1_phone=contact1_phone or None,
+                contact2_name=contact2_name or None,
+                contact2_phone=contact2_phone or None,
+                address=address or None
+            )
+            for sid in selected_subjects:
+                subj = Subject.query.get(int(sid))
+                if subj:
+                    new_student.subjects.append(subj)
+
+            db.session.add(new_student)
+            db.session.commit()
+            log_action("add_student", f"Added student {name} with subjects {selected_subjects}")
+            flash("Student added.")
+
+        return redirect(url_for("manage_students"))
+
+    students = Student.query.order_by(Student.name.asc()).all()
     page = """
     <h5>Students ({{ students|length }})</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
-      <div class="col-md-3"><input class="form-control" name="student_id" placeholder="Student ID"></div>
-      <div class="col-md-3"><input class="form-control" name="id_number" placeholder="ID Number"></div>
-      <div class="col-md-3"><input class="form-control" name="telephone" placeholder="Telephone"></div>
-      <div class="col-md-3"><input class="form-control" name="mobile" placeholder="Mobile"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_name" placeholder="Contact 1 Name"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_phone" placeholder="Contact 1 Phone"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_name" placeholder="Contact 2 Name"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_phone" placeholder="Contact 2 Phone"></div>
-      <div class="col-md-6"><input class="form-control" name="address" placeholder="Address"></div>
-      <div class="col-md-6">
-        <label class="form-label">Subjects</label>
-        <select class="form-select" name="subjects" multiple>
-          {% for subj in subjects %}
-            <option value="{{ subj.id }}">{{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-    </form>
-
-    <table class="table table-sm table-bordered">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Student ID</th>
-          <th>ID Number</th>
-          <th>Telephone</th>
-          <th>Mobile</th>
-          <th>Contact1</th>
-          <th>Contact2</th>
-          <th>Address</th>
-          <th>Subjects</th>
-          <th style="width:160px">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in students %}
-          <tr>
-            <td><a href="{{ url_for('edit_student', student_id=s.id) }}">{{ s.name }}</a></td>
-            <td>{{ s.student_id or "" }}</td>
-            <td>{{ s.id_number or "" }}</td>
-            <td>{{ s.telephone or "" }}</td>
-            <td>{{ s.mobile or "" }}</td>
-            <td>{{ s.contact1_name or "" }} {{ s.contact1_phone or "" }}</td>
-            <td>{{ s.contact2_name or "" }} {{ s.contact2_phone or "" }}</td>
-            <td>{{ s.address or "" }}</td>
-            <td>
-              {% for subj in s.subjects %}
-                {{ subj.name }}<br>
-              {% endfor %}
-            </td>
-            <td>
-              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_student', student_id=s.id) }}">Edit</a>
-              <a class="btn btn-sm btn-outline-danger"
-                 href="{{ url_for('delete_student', student_id=s.id) }}"
-                 onclick="return confirm('Delete student and their sessions?')">Delete</a>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    ... (your Students list HTML here) ...
     """
     return render(page, students=students, subjects=subjects)
 
@@ -652,89 +636,6 @@ def delete_student(student_id):
     flash("Student deleted.")
     return redirect(url_for("manage_students"))
 
-# -------------------------
-# Edit student profile
-# -------------------------
-@app.route("/students/<int:student_id>/edit", methods=["GET","POST"])
-def edit_student(student_id):
-    student = Student.query.get_or_404(student_id)
-    subjects = Subject.query.order_by(Subject.name.asc()).all()
-
-    if request.method == "POST":
-        student.name = request.form.get("name","").strip()
-        student.student_id = request.form.get("student_id","").strip() or None
-        student.id_number = request.form.get("id_number","").strip() or None
-        student.telephone = request.form.get("telephone","").strip() or None
-        student.mobile = request.form.get("mobile","").strip() or None
-        student.contact1_name = request.form.get("contact1_name","").strip() or None
-        student.contact1_phone = request.form.get("contact1_phone","").strip() or None
-        student.contact2_name = request.form.get("contact2_name","").strip() or None
-        student.contact2_phone = request.form.get("contact2_phone","").strip() or None
-        student.address = request.form.get("address","").strip() or None
-
-        # reset subjects
-student.subjects = []
-for sid in request.form.getlist("subjects"):
-    subj = Subject.query.get(int(sid))
-    if subj:
-        student.subjects.append(subj)
-
-        db.session.commit()
-        flash("Student updated.")
-        return redirect(url_for("manage_students"))
-
-    page = """
-    <h5>Edit Student</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-4"><input class="form-control" name="name" value="{{ student.name }}"></div>
-      <div class="col-md-3"><input class="form-control" name="student_id" value="{{ student.student_id or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="id_number" value="{{ student.id_number or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="telephone" value="{{ student.telephone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="mobile" value="{{ student.mobile or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_name" value="{{ student.contact1_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_phone" value="{{ student.contact1_phone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_name" value="{{ student.contact2_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}"></div>
-      <div class="col-md-6"><input class="form-control" name="address" value="{{ student.address or '' }}"></div>
-      <div class="col-md-6">
-        <label class="form-label">Subjects</label>
-        <select class="form-select" name="subjects" multiple>
-          {% for subj in subjects %}
-            <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>{{ subj.name }} ({{ "%.2f"|format(subj.price) }} / {{ subj.number_of_classes }} classes{% if subj.discount %}, {{ subj.discount }}% off{% endif %})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
-      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a></div>
-    </form>
-    """
-    return render(page, student=student, subjects=subjects)
-    page = """
-    <h5>Edit Student</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-4"><input class="form-control" name="name" value="{{ student.name }}"></div>
-      <div class="col-md-3"><input class="form-control" name="student_id" value="{{ student.student_id or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="id_number" value="{{ student.id_number or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="telephone" value="{{ student.telephone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="mobile" value="{{ student.mobile or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_name" value="{{ student.contact1_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact1_phone" value="{{ student.contact1_phone or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_name" value="{{ student.contact2_name or '' }}"></div>
-      <div class="col-md-3"><input class="form-control" name="contact2_phone" value="{{ student.contact2_phone or '' }}"></div>
-      <div class="col-md-6"><input class="form-control" name="address" value="{{ student.address or '' }}"></div>
-      <div class="col-md-6">
-        <label class="form-label">Subjects</label>
-<select class="form-select" name="subjects" multiple>
-    {% for subj in subjects %}
-        <option value="{{ subj.id }}" {% if subj in student.subjects %}selected{% endif %}>{{ subj.name }}</option>
-    {% endfor %}
-</select>
-      </div>
-      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
-      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_students') }}">Cancel</a></div>
-    </form>
-    """
-    return render(page, student=student, subjects=subjects)
 
 # -------------------------
 # Subject management
@@ -743,14 +644,17 @@ for sid in request.form.getlist("subjects"):
 def manage_subjects():
     if request.method == "POST":
         name = request.form.get("name","").strip()
-        if not name:
-            flash("Subject name cannot be empty.")
+        price = request.form.get("price", type=float)
+        num_classes = request.form.get("number_of_classes", type=int)
+        discount = request.form.get("discount", type=float)
+        if not name or price is None or num_classes is None:
+            flash("Subject name, price, and number of classes are required.")
         elif Subject.query.filter_by(name=name).first():
             flash("Subject already exists.")
         else:
-            db.session.add(Subject(name=name))
+            db.session.add(Subject(name=name, price=price, number_of_classes=num_classes, discount=discount or 0.0))
             db.session.commit()
-            log_action("add_subject", f"Added subject {name}")
+            log_action("add_subject", f"Added subject {name} price={price}, classes={num_classes}, discount={discount or 0}")
             flash("Subject added.")
         return redirect(url_for("manage_subjects"))
 
@@ -758,21 +662,25 @@ def manage_subjects():
     page = """
     <h5>Subjects</h5>
     <form method="post" class="row g-2 mb-3">
-      <div class="col-md-6"><input class="form-control" name="name" placeholder="New subject name"></div>
+      <div class="col-md-3"><input class="form-control" name="name" placeholder="Subject name"></div>
+      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" placeholder="Price"></div>
+      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" placeholder="Classes"></div>
+      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" placeholder="Discount %"></div>
       <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
     </form>
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th style="width:120px">Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Price</th><th>Classes</th><th>Discount</th><th style="width:120px">Actions</th></tr></thead>
       <tbody>
         {% for subj in subjects %}
           <tr>
             <td>{{ subj.name }}</td>
+            <td>${{ "%.2f"|format(subj.price) }}</td>
+            <td>{{ subj.number_of_classes }}</td>
+            <td>{{ subj.discount }}%</td>
             <td>
-  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_subject', subject_id=subj.id) }}">Edit</a>
-  <a class="btn btn-sm btn-outline-danger"
-     href="{{ url_for('delete_subject', subject_id=subj.id) }}"
-     onclick="return confirm('Delete subject and their sessions?')">Delete</a>
-</td>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_subject', subject_id=subj.id) }}">Edit</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('delete_subject', subject_id=subj.id) }}" onclick="return confirm('Delete subject and their sessions?')">Delete</a>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
@@ -798,116 +706,33 @@ def edit_subject(subject_id):
     subj = Subject.query.get_or_404(subject_id)
     if request.method == "POST":
         name = request.form.get("name","").strip()
-        if not name:
-            flash("Subject name cannot be empty.")
+        price = request.form.get("price", type=float)
+        num_classes = request.form.get("number_of_classes", type=int)
+        discount = request.form.get("discount", type=float)
+        if not name or price is None or num_classes is None:
+            flash("Subject name, price, and number of classes are required.")
         else:
             subj.name = name
+            subj.price = price
+            subj.number_of_classes = num_classes
+            subj.discount = discount or 0.0
             db.session.commit()
-            log_action("edit_subject", f"Edited subject id={subject_id}, new name={name}")
+            log_action("edit_subject", f"Edited subject {name}")
             flash("Subject updated.")
-        return redirect(url_for("manage_subjects"))
+            return redirect(url_for("manage_subjects"))
 
     page = """
     <h5>Edit Subject</h5>
     <form method="post" class="row g-2 mb-3">
-      <div class="col-md-6"><input class="form-control" name="name" value="{{ subj.name }}"></div>
+      <div class="col-md-3"><input class="form-control" name="name" value="{{ subj.name }}"></div>
+      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" value="{{ subj.price }}"></div>
+      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" value="{{ subj.number_of_classes }}"></div>
+      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" value="{{ subj.discount }}"></div>
       <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
       <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_subjects') }}">Cancel</a></div>
     </form>
     """
-    return render(page, subj=subj)
-
-# -------------------------
-# Course management
-# -------------------------
-@app.route("/courses", methods=["GET","POST"])
-def manage_courses():
-    if request.method == "POST":
-        name = request.form.get("name","").strip()
-        price = request.form.get("price", type=float)
-        num_classes = request.form.get("number_of_classes", type=int)
-        discount = request.form.get("discount", type=float)
-        if not name or not price or not num_classes:
-            flash("Course name, price, and number of classes are required.")
-        elif Course.query.filter_by(name=name).first():
-            flash("Course already exists.")
-        else:
-            db.session.add(Course(name=name, price=price, number_of_classes=num_classes, discount=discount or 0))
-            db.session.commit()
-            log_action("add_course", f"Added course {name} price={price}, classes={num_classes}, discount={discount or 0}")
-            flash("Course added.")
-        return redirect(url_for("manage_courses"))
-
-    courses = Course.query.order_by(Course.name.asc()).all()
-    page = """
-    <h5>Courses</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-3"><input class="form-control" name="name" placeholder="Course name"></div>
-      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" placeholder="Price"></div>
-      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" placeholder="Classes"></div>
-      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" placeholder="Discount %"></div>
-      <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
-    </form>
-    <table class="table table-sm table-bordered">
-      <thead><tr><th>Name</th><th>Price</th><th>Classes</th><th>Discount</th><th style="width:120px">Actions</th></tr></thead>
-      <tbody>
-        {% for c in courses %}
-          <tr>
-            <td>{{ c.name }}</td>
-            <td>${{ "%.2f"|format(c.price) }}</td>
-            <td>{{ c.number_of_classes }}</td>
-            <td>{{ c.discount }}%</td>
-            <td>
-  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('edit_course', course_id=c.id) }}">Edit</a>
-  <a class="btn btn-sm btn-outline-danger"
-     href="{{ url_for('delete_course', course_id=c.id) }}"
-     onclick="return confirm('Delete course?')">Delete</a>
-</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    """
-    return render(page, courses=courses)
-
-@app.route("/courses/<int:course_id>/delete")
-def delete_course(course_id):
-    c = Course.query.get_or_404(course_id)
-    db.session.delete(c)
-    db.session.commit()
-    log_action("delete_course", f"Deleted course id={course_id}")
-    flash("Course deleted.")
-    return redirect(url_for("manage_courses"))
-
-# -------------------------
-# Edit course
-# -------------------------
-@app.route("/courses/<int:course_id>/edit", methods=["GET","POST"])
-def edit_course(course_id):
-    c = Course.query.get_or_404(course_id)
-    if request.method == "POST":
-        c.name = request.form.get("name","").strip()
-        c.price = request.form.get("price", type=float) or 0
-        c.number_of_classes = request.form.get("number_of_classes", type=int) or 0
-        c.discount = request.form.get("discount", type=float) or 0
-        db.session.commit()
-        log_action("edit_course", f"Edited course id={course_id}, name={c.name}")
-        flash("Course updated.")
-        return redirect(url_for("manage_courses"))
-
-    page = """
-    <h5>Edit Course</h5>
-    <form method="post" class="row g-2 mb-3">
-      <div class="col-md-3"><input class="form-control" name="name" value="{{ c.name }}"></div>
-      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" value="{{ c.price }}"></div>
-      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" value="{{ c.number_of_classes }}"></div>
-      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" value="{{ c.discount }}"></div>
-      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
-      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_courses') }}">Cancel</a></div>
-    </form>
-    """
-    return render(page, c=c)
-# -------------------------
+    return render(page, subj=subj)# -------------------------
 # Sessions (add/edit/delete)
 # -------------------------
 @app.route("/sessions/add", methods=["GET","POST"])
@@ -1202,36 +1027,36 @@ def attendance_overview():
 @app.route("/payments", methods=["GET","POST"])
 def payments():
     students = Student.query.order_by(Student.name.asc()).all()
-    courses = Course.query.order_by(Course.name.asc()).all()
+    subjects = Subject.query.order_by(Subject.name.asc()).all()
 
     if request.method == "POST":
         student_id = request.form.get("student_id", type=int)
-        course_id = request.form.get("course_id", type=int)
+        subject_id = request.form.get("subject_id", type=int)
         amount = request.form.get("amount", type=float)
         method = request.form.get("method","").strip()
-        if not all([student_id, course_id, amount]):
-            flash("Student, course, and amount are required.")
+        if not all([student_id, subject_id, amount]):
+            flash("Student, subject, and amount are required.")
         else:
-            payment = Payment(student_id=student_id, course_id=course_id, amount=amount, method=method or None)
+            payment = Payment(student_id=student_id, subject_id=subject_id, amount=amount, method=method or None)
             db.session.add(payment)
             db.session.commit()
-            log_action("add_payment", f"Payment student={student_id}, course={course_id}, amount={amount}")
+            log_action("add_payment", f"Payment student={student_id}, subject={subject_id}, amount={amount}")
             flash("Payment recorded.")
         return redirect(url_for("payments"))
 
-    # Build payment overview
+    # Build payment overview per student+subject
     overview = []
     for s in students:
-        for c in s.courses:
-            paid = sum(p.amount for p in s.payments if p.course_id == c.id)
+        for subj in s.subjects:
+            paid = sum(p.amount for p in s.payments if p.subject_id == subj.id)
             overview.append({
                 "student": s.name,
-                "course": c.name,
-                "price": c.price,
-                "classes": c.number_of_classes,
-                "discount": c.discount,
+                "subject": subj.name,
+                "price": subj.price,
+                "classes": subj.number_of_classes,
+                "discount": subj.discount,
                 "paid": paid,
-                "outstanding": max(c.price - paid, 0)
+                "outstanding": max(subj.price - paid, 0)
             })
 
     page = """
@@ -1246,10 +1071,10 @@ def payments():
         </select>
       </div>
       <div class="col-md-3">
-        <select class="form-select" name="course_id" required>
-          <option value="">-- course --</option>
-          {% for c in courses %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
+        <select class="form-select" name="subject_id" required>
+          <option value="">-- subject --</option>
+          {% for subj in subjects %}
+            <option value="{{ subj.id }}">{{ subj.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -1259,12 +1084,12 @@ def payments():
     </form>
 
     <table class="table table-sm table-bordered">
-      <thead><tr><th>Student</th><th>Course</th><th>Price</th><th>Classes</th><th>Discount</th><th>Paid</th><th>Outstanding</th></tr></thead>
+      <thead><tr><th>Student</th><th>Subject</th><th>Price</th><th>Classes</th><th>Discount</th><th>Paid</th><th>Outstanding</th></tr></thead>
       <tbody>
         {% for row in overview %}
           <tr>
             <td>{{ row.student }}</td>
-            <td>{{ row.course }}</td>
+            <td>{{ row.subject }}</td>
             <td>${{ "%.2f"|format(row.price) }}</td>
             <td>{{ row.classes }}</td>
             <td>{{ row.discount }}%</td>
@@ -1275,7 +1100,7 @@ def payments():
       </tbody>
     </table>
     """
-    return render(page, students=students, courses=courses, overview=overview)
+    return render(page, students=students, subjects=subjects, overview=overview)
 
 # -------------------------
 # Export routes
@@ -1296,7 +1121,7 @@ def export_students(format):
             "Contact2": s.contact2_name or "",
             "Contact2 Phone": s.contact2_phone or "",
             "Address": s.address or "",
-            "Courses": ", ".join(c.name for c in s.courses)
+            "Subjects": ", ".join(subj.name for subj in s.subjects)
         })
     df = pd.DataFrame(data)
     if format == "csv":
@@ -1318,7 +1143,56 @@ def export_payments(format):
         data.append({
             "Date": p.date.isoformat(),
             "Student": p.student.name,
-            "Course": p.course.name,
+            "Subject": p.subject.name,
+            "Amount": p.amount,
+            "Method": p.method or ""
+        })
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="payments.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="payments.xlsx", as_attachment=True)
+
+@app.route("/export/attendance/<format>")
+def export_attendance(format):
+    records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
+    data = []
+    for r in records:
+        data.append({
+            "Timestamp": r.timestamp.strftime("%Y-%m-%d %H:%M"),
+            "Student": r.student.name,
+            "Session Date": r.session.session_date.isoformat(),
+            "Start": r.session.start_time.strftime("%H:%M"),
+            "Subject": r.session.subject.name,
+            "Status": r.status
+        })
+    df = pd.DataFrame(data)
+    if format == "csv":
+        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
+                         download_name="attendance.csv", as_attachment=True)
+    elif format == "excel":
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False)
+        output.seek(0)
+        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         download_name="attendance.xlsx", as_attachment=True)
+
+@app.route("/export/payments/<format>")
+def export_payments(format):
+    payments = Payment.query.order_by(Payment.date.desc()).all()
+    data = []
+    for p in payments:
+        data.append({
+            "Date": p.date.isoformat(),
+            "Student": p.student.name,
+            "Subject": p.subject.name,
             "Amount": p.amount,
             "Method": p.method or ""
         })
