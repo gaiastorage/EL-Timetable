@@ -559,10 +559,13 @@ def manage_students():
             db.session.commit()
             log_action("add_student", f"Added student {name} with subjects {selected_subjects}")
             flash("Student added.")
-            return redirect(url_for("manage_students"))
+
+        return redirect(url_for("manage_students"))   # <-- correctly indented here
 
     students = Student.query.order_by(Student.name.asc()).all()
-    page = """
+    page = """ ... """
+    return render(page, students=students, subjects=subjects)
+
     <h5>Students ({{ students|length }})</h5>
     <form method="post" class="row g-2 mb-3">
       <div class="col-md-4"><input class="form-control" name="name" placeholder="Name"></div>
