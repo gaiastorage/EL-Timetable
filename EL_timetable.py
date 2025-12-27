@@ -225,8 +225,8 @@ def home():
     page = """
 <h5>Timetable</h5>
 <div class="mb-3">
-  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable_csv') }}">Download CSV</a>
-  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable_excel') }}">Download Excel</a>
+  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable', format='csv') }}">Download CSV</a>
+  <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_timetable', format='excel') }}">Download Excel</a>
 </div>
 <form method="get" class="mb-3">
       <div class="row g-2">
@@ -371,9 +371,8 @@ def teacher_totals():
     page = """
     <h5>Teacher Totals</h5>
     <div class="mb-3">
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals_csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_teacher_totals_excel') }}">Download Excel</a>
-    </div>
+    <a href="{{ url_for('export_teacher_totals', format='csv') }}">Download CSV</a>
+    <a href="{{ url_for('export_teacher_totals', format='excel') }}">Download Excel</a>    </div>
     <table class="table table-sm table-bordered">
       <thead>
         <tr>
@@ -447,8 +446,8 @@ def weekly_timetable():
     page = """
     <h5>Weekly Timetable ({{ start_week.strftime('%d %b') }} - {{ (end_week - timedelta(days=1)).strftime('%d %b %Y') }})</h5>
     <div class="mb-3">
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly_csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_weekly_excel') }}">Download Excel</a>
+    <a href="{{ url_for('export_weekly', format='csv') }}">Download CSV</a>
+    <a href="{{ url_for('export_weekly', format='excel') }}">Download Excel</a>
     </div>
     <!-- Combined table -->
 
@@ -539,8 +538,8 @@ def logs():
     page = """
     <<h5>System Logs</h5>
     <div class="mb-3">
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs_csv') }}">Download CSV</a>
-      <a class="btn btn-sm btn-outline-success" href="{{ url_for('export_logs_excel') }}">Download Excel</a>
+    <a href="{{ url_for('export_logs', format='csv') }}">Download CSV</a>
+    <a href="{{ url_for('export_logs', format='excel') }}">Download Excel</a>
     </div>
     <table class="table table-sm table-bordered">
 
