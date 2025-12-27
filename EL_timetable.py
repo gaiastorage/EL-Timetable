@@ -709,6 +709,7 @@ def edit_subject(subject_id):
         price = request.form.get("price", type=float)
         num_classes = request.form.get("number_of_classes", type=int)
         discount = request.form.get("discount", type=float)
+
         if not name or price is None or num_classes is None:
             flash("Subject name, price, and number of classes are required.")
         else:
@@ -720,6 +721,19 @@ def edit_subject(subject_id):
             log_action("edit_subject", f"Edited subject {name}")
             flash("Subject updated.")
             return redirect(url_for("manage_subjects"))
+
+    page = """
+    <h5>Edit Subject</h5>
+    <form method="post" class="row g-2 mb-3">
+      <div class="col-md-3"><input class="form-control" name="name" value="{{ subj.name }}"></div>
+      <div class="col-md-2"><input class="form-control" name="price" type="number" step="0.01" value="{{ subj.price }}"></div>
+      <div class="col-md-2"><input class="form-control" name="number_of_classes" type="number" value="{{ subj.number_of_classes }}"></div>
+      <div class="col-md-2"><input class="form-control" name="discount" type="number" step="0.01" value="{{ subj.discount }}"></div>
+      <div class="col-md-2"><button class="btn btn-success w-100">Save</button></div>
+      <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('manage_subjects') }}">Cancel</a></div>
+    </form>
+    """
+    return render(page, subj=subj)
 
     page = """
     <h5>Edit Subject</h5>
@@ -1184,29 +1198,6 @@ def export_attendance(format):
         return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          download_name="attendance.xlsx", as_attachment=True)
 
-@app.route("/export/payments/<format>")
-def export_payments(format):
-    payments = Payment.query.order_by(Payment.date.desc()).all()
-    data = []
-    for p in payments:
-        data.append({
-            "Date": p.date.isoformat(),
-            "Student": p.student.name,
-            "Subject": p.subject.name,
-            "Amount": p.amount,
-            "Method": p.method or ""
-        })
-    df = pd.DataFrame(data)
-    if format == "csv":
-        return send_file(io.BytesIO(df.to_csv(index=False).encode()), mimetype="text/csv",
-                         download_name="payments.csv", as_attachment=True)
-    elif format == "excel":
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False)
-        output.seek(0)
-        return send_file(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                         download_name="payments.xlsx", as_attachment=True)
 
 @app.route("/export/attendance/<format>")
 def export_attendance(format):
